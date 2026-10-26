@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="noir-aero">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>myTYSON Single Sign-On | auth.my.tysonmediagroup.org</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="auth-page-body">
+
+  <!-- Top Header of SSO: Dynamically shows the Logo for the App you are on -->
+  <header class="main-header">
+    <a href="/" class="topbar-brand" id="ssoReturnAppLink">
+      <img src="/assets/TYSONMediaGroupBanner.png" alt="TYSON App Logo" class="logo-img" id="ssoTopBarAppLogo">
+    </a>
+
+    <nav class="main-nav">
+      <span class="nav-link active brand-tmg-domain" id="ssoTopBarDomainLabel">auth.my.tysonmediagroup.org</span>
+    </nav>
+
+    <div class="topbar-actions">
+      <a href="/" class="btn" id="ssoReturnBtn">&larr; Back to App</a>
+      <button class="settings-toggle-btn" id="settings-toggle-btn" title="Theme &amp; Appearance Settings" aria-label="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <span>Settings</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="auth-center-wrap">
+    <div class="auth-box">
+      <div class="auth-logo-wrap">
+        <!-- Dynamically displays the logo of the requesting TYSON app at the top of the SSO card -->
+        <img src="/assets/TYSONMediaGroupBanner.png" alt="Requesting App Logo" class="auth-banner-logo" id="ssoCardAppLogo">
+        <span class="editorial-tag" id="ssoAppTagline">myTYSON Single Sign-On</span>
+        <h1 class="auth-heading" id="ssoMainHeading">Sign in to Continue</h1>
+        <p class="auth-subheading brand-tmg-domain" style="font-size: 1.25rem;" id="ssoAppDomainSubtitle">my.tysonmediagroup.org</p>
+        <span class="auth-target-pill" id="authTargetBadge">auth.my.tysonmediagroup.org</span>
+      </div>
+
+      <!-- One-click Continue Box if already signed in -->
+      <div class="auth-continue-box" id="existingSessionBox">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px;">
+          <div>
+            <div style="font-size: 0.74rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">Signed in as</div>
+            <div style="font-family: var(--font-heading); font-size: 1.55rem; font-weight: 500; color: var(--text-white);" id="existingSessionName">Stephen French</div>
+            <div class="brand-tmg-domain" style="font-size: 1.1rem; color: var(--text-muted);" id="existingSessionHandle">flame@tysonmediagroup.org</div>
+          </div>
+          <span class="tyson-white-badge" id="existingSessionBadge">
+            <img src="/assets/tyson-white-badge.png" alt="TYSON">
+          </span>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" class="btn btn-primary" style="flex: 1;" id="continueAsBtn">Continue &rarr;</button>
+          <button type="button" class="btn" id="signOutExistingBtn">Use Another Account</button>
+        </div>
+      </div>
+
+      <div class="auth-error" id="authErrorBox">Invalid myTYSON username or password.</div>
+
+      <form id="ssoLoginForm" autocomplete="off">
+        <div class="form-group">
+          <label class="form-label" for="ssoUsername">Username</label>
+          <input type="text" id="ssoUsername" class="form-input" placeholder="username@tysonmediagroup.org" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="ssoPassword">Password</label>
+          <input type="password" id="ssoPassword" class="form-input" placeholder="Password" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 13px 18px; font-size: 1.25rem; margin-top: 6px;">
+          Sign In &rarr;
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <footer style="text-align: center; padding: 2rem 1.5rem; border-top: 1px solid var(--border-subtle);">
+    <img src="/assets/TYSONMediaGroupBanner.png" alt="TYSON Media Group" class="footer-logo" id="ssoFooterLogo">
+    <div class="brand-tmg-domain" style="font-size: 1.35rem; color: var(--text-white);">auth.my.tysonmediagroup.org</div>
+    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Ad Astra Per Aspera &bull; Stillness in Motion</div>
+  </footer>
+
+  <!-- Slide-out Multi-Theme Settings Drawer -->
+  <div class="settings-drawer-backdrop" id="settings-drawer-backdrop"></div>
+  <aside class="settings-drawer" id="settings-drawer" aria-label="Appearance Settings">
+    <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 14px;">
+      <h3 style="font-family: var(--font-heading); font-size: 1.75rem; font-weight: 500; color: var(--text-white);">Appearance &amp; Theme</h3>
+      <button type="button" class="btn" id="settings-close-btn" style="padding: 6px 14px;">Close</button>
+    </div>
+    <p style="font-size: 0.88rem; color: var(--text-muted);">Select a TYSON Media Group visual theme:</p>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <button type="button" class="theme-option-btn active" data-set-theme="noir-aero">
+        <span>Black Frutiger Aero</span>
+        <span style="font-size: 0.78rem; color: var(--text-muted);">Obsidian Gloss</span>
+      </button>
+      <button type="button" class="theme-option-btn" data-set-theme="noir">
+        <span>Noir Midnight</span>
+        <span style="font-size: 0.78rem; color: var(--text-muted);">Architectural Flat</span>
+      </button>
+      <button type="button" class="theme-option-btn" data-set-theme="frutiger">
+        <span>Frutiger Aero Aqua</span>
+        <span style="font-size: 0.78rem; color: var(--text-muted);">Machined Glass</span>
+      </button>
+      <button type="button" class="theme-option-btn" data-set-theme="wii">
+        <span>Nintendo Wii</span>
+        <span style="font-size: 0.78rem; color: var(--text-muted);">System Channels</span>
+      </button>
+      <button type="button" class="theme-option-btn" data-set-theme="nature">
+        <span>Nature Botanical</span>
+        <span style="font-size: 0.78rem; color: var(--text-muted);">Deep Moss</span>
+      </button>
+    </div>
+  </aside>
+
+  <script src="/mytyson-core.js"></script>
+  <script>
+    (function () {
+      var core = window.MyTysonCore;
+      var params = new URLSearchParams(window.location.search);
+      var redirectParam = params.get('redirect') || '';
+      var appParam = (params.get('app') || '').toLowerCase();
+
+      function getDefaultDashboardUrl() {
+        var h = window.location.hostname;
+        if (h === 'localhost' || h === '127.0.0.1') {
+          return 'http://localhost:8097/';
+        }
+        return 'https://my.tysonmediagroup.org/';
+      }
+
+      // Map requesting app to its official TYSON logo, title, and domain
+      var APP_BRANDING = {
+        atlantis: {
+          name: 'TYSON Atlantis',
+          domain: 'flame.atlantis.tysonmediagroup.org',
+          logo: '/assets/TYSONAtlantisBanner.png',
+          fallbackUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8095/' : 'https://flame.atlantis.tysonmediagroup.org/'
+        },
+        software: {
+          name: 'TYSON Software',
+          domain: 'software.tysonmediagroup.org',
+          logo: '/assets/TYSONSoftwareBanner.png',
+          fallbackUrl: 'https://tysonmediagroup.org/'
+        },
+        rpm: {
+          name: 'RPM World',
+          domain: 'rpm.tysonmediagroup.org',
+          logo: '/assets/RPMworld2.jpg',
+          fallbackUrl: 'https://rpm.tysonmediagroup.org/'
+        },
+        aviation: {
+          name: 'TYSON Aviation',
+          domain: 'aviation.tysonmediagroup.org',
+          logo: '/assets/TYSONAviationBanner.png',
+          fallbackUrl: 'https://aviation.tysonmediagroup.org/'
+        },
+        racing: {
+          name: 'TYSON Racing',
+          domain: 'racing.tysonmediagroup.org',
+          logo: '/assets/TYSONRacingBanner.png',
+          fallbackUrl: 'https://tysonmediagroup.org/'
+        },
+        tmg: {
+          name: 'TYSON Media Group',
+          domain: 'tysonmediagroup.org',
+          logo: '/assets/TYSONMediaGroupBanner.png',
+          fallbackUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8096/flame' : 'https://tysonmediagroup.org/'
+        },
+        mytyson: {
+          name: 'myTYSON Dashboard',
+          domain: 'my.tysonmediagroup.org',
+          logo: '/assets/TYSONMediaGroupBanner.png',
+          fallbackUrl: getDefaultDashboardUrl()
+        }
+      };
+
+      function detectAppConfig() {
+        var checkStr = (appParam + ' ' + redirectParam + ' ' + (document.referrer || '')).toLowerCase();
+        if (checkStr.indexOf('atlantis') !== -1 || checkStr.indexOf(':8095') !== -1) {
+          return APP_BRANDING.atlantis;
+        }
+        if (checkStr.indexOf('software') !== -1) {
+          return APP_BRANDING.software;
+        }
+        if (checkStr.indexOf('rpm.') !== -1 || appParam === 'rpm') {
+          return APP_BRANDING.rpm;
+        }
+        if (checkStr.indexOf('aviation') !== -1) {
+          return APP_BRANDING.aviation;
+        }
+        if (checkStr.indexOf('racing') !== -1) {
+          return APP_BRANDING.racing;
+        }
+        if (appParam === 'tmg' || checkStr.indexOf(':8096') !== -1 || (redirectParam.indexOf('tysonmediagroup.org') !== -1 && redirectParam.indexOf('my.tysonmediagroup.org') === -1)) {
+          return APP_BRANDING.tmg;
+        }
+        return APP_BRANDING.mytyson;
+      }
+
+      var activeApp = detectAppConfig();
+      var returnDestination = redirectParam || activeApp.fallbackUrl || getDefaultDashboardUrl();
+
+      // Apply the App's Logo to the top header AND the top of the SSO card
+      var topBarLogo = document.getElementById('ssoTopBarAppLogo');
+      var cardLogo = document.getElementById('ssoCardAppLogo');
+      var topBarDomain = document.getElementById('ssoTopBarDomainLabel');
+      var mainHeading = document.getElementById('ssoMainHeading');
+      var subDomainEl = document.getElementById('ssoAppDomainSubtitle');
+      var targetBadge = document.getElementById('authTargetBadge');
+
+      topBarLogo.src = activeApp.logo;
+      topBarLogo.alt = activeApp.name;
+      cardLogo.src = activeApp.logo;
+      cardLogo.alt = activeApp.name;
+
+      topBarDomain.textContent = activeApp.domain;
+      mainHeading.textContent = 'Sign in to ' + activeApp.name;
+      subDomainEl.textContent = activeApp.domain;
+      targetBadge.textContent = 'SSO Node: auth.my.tysonmediagroup.org';
+
+      document.getElementById('ssoReturnAppLink').href = returnDestination;
+      document.getElementById('ssoReturnBtn').href = returnDestination;
+
+      function completeRedirectWithSession(session) {
+        var token = core.encodeSsoToken(session);
+        try {
+          var targetUrl = new URL(returnDestination, window.location.origin);
+          targetUrl.searchParams.set('mytyson_sso', token);
+          window.location.href = targetUrl.toString();
+        } catch (e) {
+          var sep = returnDestination.indexOf('?') === -1 ? '?' : '&';
+          window.location.href = returnDestination + sep + 'mytyson_sso=' + encodeURIComponent(token);
+        }
+      }
+
+      var currentSession = core.getSession();
+      var existingBox = document.getElementById('existingSessionBox');
+      if (currentSession && currentSession.username) {
+        existingBox.classList.add('visible');
+        document.getElementById('existingSessionName').textContent = currentSession.name;
+        document.getElementById('existingSessionHandle').textContent = currentSession.username;
+        var badgeEl = document.getElementById('existingSessionBadge');
+        badgeEl.style.display = (currentSession.team === 'N') ? 'none' : 'inline-flex';
+      }
+
+      document.getElementById('continueAsBtn').addEventListener('click', function () {
+        if (currentSession) {
+          completeRedirectWithSession(currentSession);
+        }
+      });
+
+      document.getElementById('signOutExistingBtn').addEventListener('click', function () {
+        core.clearSession();
+        existingBox.classList.remove('visible');
+        document.getElementById('ssoUsername').focus();
+      });
+
+      var form = document.getElementById('ssoLoginForm');
+      var errBox = document.getElementById('authErrorBox');
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        errBox.classList.remove('visible');
+        var userVal = document.getElementById('ssoUsername').value;
+        var passVal = document.getElementById('ssoPassword').value;
+
+        var session = core.authenticate(userVal, passVal);
+        if (!session) {
+          errBox.classList.add('visible');
+          return;
+        }
+        completeRedirectWithSession(session);
+      });
+    })();
+  </script>
+</body>
+</html>
