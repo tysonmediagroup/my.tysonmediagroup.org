@@ -172,7 +172,7 @@
         </span>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px;">
+      <div class="form-grid">
         <div class="form-group">
           <label class="form-label" for="displayNameInput">Display Name</label>
           <input type="text" id="displayNameInput" class="form-input" placeholder="Full Name">
@@ -194,8 +194,8 @@
         <textarea id="bioInput" class="form-textarea" placeholder="Short profile summary..."></textarea>
       </div>
 
-      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-        <div style="display: flex; gap: 12px;">
+      <div class="action-row">
+        <div class="action-row-group">
           <button type="button" class="btn btn-primary" id="saveProfileBtn">Save Profile Changes</button>
           <button type="button" class="btn" id="resetAllProfileBtn">Reset Profile to Defaults</button>
         </div>
@@ -418,22 +418,34 @@
         var acc = core.findAccount(slug) || core.ACCOUNTS[0];
         activeAccount = acc;
         if (topAuthBtn) {
-          topAuthBtn.textContent = acc.username + ' • Sign In / Switch';
+          topAuthBtn.textContent = 'Switch Account';
+          topAuthBtn.title = 'Signed in as ' + acc.username;
         }
         core.createSessionForAccount(acc);
 
-        var custom = core.getCustomProfile(acc.slug);
-        displayNameInput.value = custom.displayName || acc.name;
-        divisionInput.value = custom.division || acc.division;
-        bioInput.value = custom.bio || acc.bio;
+        function applyCustomToInputs(custom) {
+          custom = custom || {};
+          displayNameInput.value = custom.displayName || acc.name;
+          divisionInput.value = custom.division || acc.division;
+          bioInput.value = custom.bio || acc.bio;
 
-        currentPfpData = custom.pfpUrl || '';
-        pfpUrlInput.value = (currentPfpData && !currentPfpData.startsWith('data:')) ? currentPfpData : '';
+          currentPfpData = custom.pfpUrl || '';
+          pfpUrlInput.value = (currentPfpData && !currentPfpData.startsWith('data:')) ? currentPfpData : '';
 
-        currentCoverData = custom.coverUrl || '';
-        coverUrlInput.value = (currentCoverData && !currentCoverData.startsWith('data:')) ? currentCoverData : '';
+          currentCoverData = custom.coverUrl || '';
+          coverUrlInput.value = (currentCoverData && !currentCoverData.startsWith('data:')) ? currentCoverData : '';
 
-        renderPreview();
+          renderPreview();
+        }
+
+        applyCustomToInputs(core.getCustomProfile(acc.slug));
+        if (core.fetchCloudProfile) {
+          core.fetchCloudProfile(acc.slug, function (cloudCustom) {
+            if (activeAccount && activeAccount.slug === acc.slug && cloudCustom) {
+              applyCustomToInputs(cloudCustom);
+            }
+          });
+        }
       }
 
       function saveChanges() {
@@ -441,33 +453,49 @@
         var pfpFinal = pfpUrlInput.value.trim() || currentPfpData;
         var coverFinal = coverUrlInput.value.trim() || currentCoverData;
 
+        saveToast.textContent = 'Saving to myTYSON Cloud...';
+        saveToast.classList.add('visible');
+
         core.saveCustomProfile(activeAccount.slug, {
           displayName: displayNameInput.value.trim() || activeAccount.name,
           division: divisionInput.value.trim() || activeAccount.division,
           bio: bioInput.value.trim() || activeAccount.bio,
           pfpUrl: pfpFinal,
           coverUrl: coverFinal
+        }, function (cloudOk) {
+          saveToast.textContent = cloudOk
+            ? 'Saved to myTYSON Cloud and synced across tysonmediagroup.org.'
+            : 'Profile saved and synced across .tysonmediagroup.org.';
+          setTimeout(function () {
+            saveToast.classList.remove('visible');
+          }, 3500);
         });
 
         renderPreview();
-        saveToast.classList.add('visible');
-        setTimeout(function () {
-          saveToast.classList.remove('visible');
-        }, 3500);
       }
 
-      function resizeUploadedImage(file, maxW, maxH, callback) {
+      function resizeUploadedImage(file, maxW, maxH, isSquareCrop, callback) {
         var reader = new FileReader();
         reader.onload = function (e) {
           var img = new Image();
           img.onload = function () {
             var canvas = document.createElement('canvas');
-            var ratio = Math.min(maxW / img.width, maxH / img.height, 1);
-            canvas.width = Math.round(img.width * ratio);
-            canvas.height = Math.round(img.height * ratio);
             var ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            callback(canvas.toDataURL('image/jpeg', 0.84));
+            if (isSquareCrop) {
+              var side = Math.min(img.width, img.height);
+              var sx = Math.round((img.width - side) / 2);
+              var sy = Math.round((img.height - side) / 2);
+              canvas.width = maxW;
+              canvas.height = maxH;
+              ctx.drawImage(img, sx, sy, side, side, 0, 0, maxW, maxH);
+              callback(canvas.toDataURL('image/jpeg', 0.78));
+            } else {
+              var ratio = Math.min(maxW / img.width, maxH / img.height, 1);
+              canvas.width = Math.round(img.width * ratio);
+              canvas.height = Math.round(img.height * ratio);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              callback(canvas.toDataURL('image/jpeg', 0.80));
+            }
           };
           img.src = e.target.result;
         };
@@ -483,7 +511,7 @@
       document.getElementById('pfpFileInput').addEventListener('change', function (e) {
         var file = e.target.files && e.target.files[0];
         if (!file) return;
-        resizeUploadedImage(file, 320, 320, function (dataUrl) {
+        resizeUploadedImage(file, 220, 220, true, function (dataUrl) {
           currentPfpData = dataUrl;
           pfpUrlInput.value = '';
           saveChanges();
@@ -499,7 +527,7 @@
       document.getElementById('coverFileInput').addEventListener('change', function (e) {
         var file = e.target.files && e.target.files[0];
         if (!file) return;
-        resizeUploadedImage(file, 1280, 460, function (dataUrl) {
+        resizeUploadedImage(file, 960, 340, false, function (dataUrl) {
           currentCoverData = dataUrl;
           coverUrlInput.value = '';
           saveChanges();

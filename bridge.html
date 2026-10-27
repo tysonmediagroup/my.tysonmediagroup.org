@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>myTYSON Storage Bridge</title>
+</head>
+<body>
+<script>
+  (function () {
+    var CUSTOM_KEY_PREFIX = 'mytyson_profile_custom_';
+    var STORAGE_KEY = 'mytyson_session_v1';
+
+    function sendState(slug) {
+      var custom = null;
+      var session = null;
+      try {
+        if (slug) {
+          var raw = localStorage.getItem(CUSTOM_KEY_PREFIX + slug);
+          if (raw) custom = JSON.parse(raw);
+        }
+        var sRaw = localStorage.getItem(STORAGE_KEY);
+        if (sRaw) session = JSON.parse(sRaw);
+      } catch (e) {}
+
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'MYTYSON_BRIDGE_STATE',
+          slug: slug,
+          custom: custom,
+          session: session
+        }, '*');
+      }
+    }
+
+    var params = new URLSearchParams(window.location.search);
+    var initSlug = params.get('slug') || '';
+    sendState(initSlug);
+
+    window.addEventListener('message', function (ev) {
+      if (!ev.data || typeof ev.data !== 'object') return;
+      if (ev.data.type === 'MYTYSON_REQUEST_PROFILE' && ev.data.slug) {
+        sendState(ev.data.slug);
+      }
+    });
+  })();
+</script>
+</body>
+</html>

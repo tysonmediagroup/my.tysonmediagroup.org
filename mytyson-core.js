@@ -2,6 +2,8 @@
   var STORAGE_KEY = 'mytyson_session_v1';
   var CUSTOM_KEY_PREFIX = 'mytyson_profile_custom_';
   var THEME_KEY = 'tyson_active_theme';
+  var CHUNK_COUNT = 6;
+  var CHUNK_SIZE = 3200;
 
   var DEFAULT_ACCOUNTS = [
     {
@@ -150,8 +152,46 @@
   }
 
   function getSharedCookie(name) {
-    var match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-    return match ? decodeURIComponent(match[2]) : null;
+    var escaped = name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1');
+    var match = document.cookie.match(new RegExp('(?:^|; )' + escaped + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  // Write chunked cookies across .tysonmediagroup.org so base64 PFPs up to ~18KB survive cookie limits
+  function writeChunkedCookie(slug, rawJson) {
+    if (!slug) return;
+    for (var c = 0; c < CHUNK_COUNT; c++) {
+      var part = rawJson ? rawJson.slice(c * CHUNK_SIZE, (c + 1) * CHUNK_SIZE) : '';
+      if (part) {
+        setSharedCookie('mytyson_p' + c + '_' + slug, part, 365);
+      } else {
+        setSharedCookie('mytyson_p' + c + '_' + slug, '', -1);
+      }
+    }
+  }
+
+  function readChunkedCookie(slug) {
+    if (!slug) return null;
+    var combined = '';
+    for (var c = 0; c < CHUNK_COUNT; c++) {
+      var part = getSharedCookie('mytyson_p' + c + '_' + slug);
+      if (!part) break;
+      combined += part;
+    }
+    if (!combined) return null;
+    try {
+      return JSON.parse(combined);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function getCloudApiBase() {
+    var h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1') {
+      return '';
+    }
+    return 'https://my.tysonmediagroup.org';
   }
 
   function findAccount(identifier) {
@@ -211,14 +251,22 @@
   function getCustomProfile(slug) {
     if (!slug) return {};
     try {
-      var raw = localStorage.getItem(CUSTOM_KEY_PREFIX + slug) || getSharedCookie('mytyson_custom_' + slug);
-      return raw ? JSON.parse(raw) : {};
+      var localRaw = localStorage.getItem(CUSTOM_KEY_PREFIX + slug);
+      if (localRaw) {
+        return JSON.parse(localRaw);
+      }
+    } catch (e) {}
+    var chunked = readChunkedCookie(slug);
+    if (chunked) return chunked;
+    try {
+      var fallbackCookie = getSharedCookie('mytyson_custom_' + slug);
+      return fallbackCookie ? JSON.parse(fallbackCookie) : {};
     } catch (e) {
       return {};
     }
   }
 
-  function saveCustomProfile(slug, data) {
+  function saveCustomProfile(slug, data, onCloudSaved) {
     if (!slug) return;
     var payload = {
       slug: slug,
@@ -234,34 +282,87 @@
       localStorage.setItem(CUSTOM_KEY_PREFIX + slug, raw);
     } catch (e) {}
 
-    var cookieSafe = {
-      slug: slug,
-      displayName: payload.displayName,
-      bio: payload.bio,
-      division: payload.division,
-      pfpUrl: payload.pfpUrl && payload.pfpUrl.length < 1200 ? payload.pfpUrl : '',
-      coverUrl: payload.coverUrl && payload.coverUrl.length < 1200 ? payload.coverUrl : '',
-      updatedAt: payload.updatedAt
-    };
-    setSharedCookie('mytyson_custom_' + slug, JSON.stringify(cookieSafe), 365);
+    // Write chunked cookie if total payload fits in 6 chunks (~19KB)
+    if (raw.length <= CHUNK_COUNT * CHUNK_SIZE) {
+      writeChunkedCookie(slug, raw);
+    } else {
+      // If cover photo is also base64 and huge, at least store PFP + metadata in chunked cookie
+      var pfpPayload = JSON.stringify({
+        slug: slug,
+        displayName: payload.displayName,
+        bio: payload.bio,
+        division: payload.division,
+        pfpUrl: (payload.pfpUrl && payload.pfpUrl.length <= 16500) ? payload.pfpUrl : '',
+        coverUrl: (payload.coverUrl && !payload.coverUrl.startsWith('data:')) ? payload.coverUrl : '',
+        updatedAt: payload.updatedAt
+      });
+      if (pfpPayload.length <= CHUNK_COUNT * CHUNK_SIZE) {
+        writeChunkedCookie(slug, pfpPayload);
+      }
+    }
 
+    // Sync to Cloudflare Worker Edge Storage (/api/profile)
+    var apiBase = getCloudApiBase();
     try {
-      fetch('/api/profile?slug=' + encodeURIComponent(slug), {
+      fetch(apiBase + '/api/profile?slug=' + encodeURIComponent(slug), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: raw
-      }).catch(function () {});
-    } catch (e) {}
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (typeof onCloudSaved === 'function') onCloudSaved(true, res);
+        })
+        .catch(function () {
+          if (typeof onCloudSaved === 'function') onCloudSaved(false);
+        });
+    } catch (e) {
+      if (typeof onCloudSaved === 'function') onCloudSaved(false);
+    }
 
     return payload;
   }
 
-  function resetCustomProfile(slug) {
+  function fetchCloudProfile(slug, callback) {
+    if (!slug) return;
+    var apiBase = getCloudApiBase();
+    fetch(apiBase + '/api/profile?slug=' + encodeURIComponent(slug) + '&_t=' + Date.now())
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (cloudData) {
+        if (cloudData && cloudData.slug) {
+          var local = getCustomProfile(slug);
+          if (!local.updatedAt || (cloudData.updatedAt && cloudData.updatedAt >= local.updatedAt)) {
+            try {
+              localStorage.setItem(CUSTOM_KEY_PREFIX + slug, JSON.stringify(cloudData));
+            } catch (e) {}
+            if (typeof callback === 'function') callback(cloudData);
+            return;
+          }
+        }
+        if (typeof callback === 'function') callback(getCustomProfile(slug));
+      })
+      .catch(function () {
+        if (typeof callback === 'function') callback(getCustomProfile(slug));
+      });
+  }
+
+  function resetCustomProfile(slug, callback) {
     if (!slug) return;
     try {
       localStorage.removeItem(CUSTOM_KEY_PREFIX + slug);
     } catch (e) {}
+    writeChunkedCookie(slug, '');
     setSharedCookie('mytyson_custom_' + slug, '', -1);
+
+    var apiBase = getCloudApiBase();
+    fetch(apiBase + '/api/profile?slug=' + encodeURIComponent(slug), {
+      method: 'DELETE'
+    }).finally(function () {
+      if (typeof callback === 'function') callback();
+    });
   }
 
   function encodeSsoToken(session) {
@@ -272,7 +373,6 @@
     }
   }
 
-  // Multi-Theme Engine (noir-aero, noir, frutiger, wii, nature)
   function applyTheme(themeName) {
     var t = themeName || 'noir-aero';
     document.documentElement.setAttribute('data-theme', t);
@@ -334,6 +434,7 @@
     clearSession: clearSession,
     getCustomProfile: getCustomProfile,
     saveCustomProfile: saveCustomProfile,
+    fetchCloudProfile: fetchCloudProfile,
     resetCustomProfile: resetCustomProfile,
     encodeSsoToken: encodeSsoToken,
     applyTheme: applyTheme
