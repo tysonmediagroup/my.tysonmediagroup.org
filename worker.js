@@ -184,8 +184,8 @@ export default {
 
       if (request.method === "DELETE") {
         const slug = (url.searchParams.get("slug") || "").trim().toLowerCase();
-        if (slug === "tyson" || slug === "t") {
-          return new Response(JSON.stringify({ ok: false, error: "Cannot delete root admin account" }), {
+        if (slug === "tyson" || slug === "t" || slug === "ash" || slug === "a") {
+          return new Response(JSON.stringify({ ok: false, error: "Cannot delete protected admin account" }), {
             status: 403,
             headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
           });

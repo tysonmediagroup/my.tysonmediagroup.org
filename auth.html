@@ -239,16 +239,16 @@
           fallbackUrl: getDefaultDashboardUrl()
         },
         poweradmin: {
-          name: 'PowerAdmin Console',
-          domain: 'poweradmin.tysonmediagroup.org',
+          name: 'TYSON Administration',
+          domain: 'power.administration.tysonmediagroup.org',
           logo: '/assets/TYSONSoftwareBanner.png',
-          fallbackUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8098/' : 'https://poweradmin.tysonmediagroup.org/'
+          fallbackUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8098/' : 'https://power.administration.tysonmediagroup.org/'
         }
       };
 
       function detectAppConfig() {
         var checkStr = (appParam + ' ' + redirectParam + ' ' + (document.referrer || '')).toLowerCase();
-        if (checkStr.indexOf('poweradmin') !== -1 || appParam === 'poweradmin' || checkStr.indexOf(':8098') !== -1) {
+        if (checkStr.indexOf('poweradmin') !== -1 || checkStr.indexOf('administration') !== -1 || checkStr.indexOf('power') !== -1 || appParam === 'poweradmin' || appParam === 'administration' || checkStr.indexOf(':8098') !== -1) {
           return APP_BRANDING.poweradmin;
         }
         if (checkStr.indexOf('atlantis') !== -1 || checkStr.indexOf(':8095') !== -1) {

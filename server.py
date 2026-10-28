@@ -226,8 +226,8 @@ class MyTysonHandler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == "/api/accounts":
             qs = urllib.parse.parse_qs(parsed.query)
             slug = (qs.get("slug", [""])[0]).lower()
-            if slug in ["tyson", "t"]:
-                resp = json.dumps({"ok": False, "error": "Cannot delete root admin account"}).encode("utf-8")
+            if slug in ["tyson", "t", "ash", "a"]:
+                resp = json.dumps({"ok": False, "error": "Cannot delete protected admin account"}).encode("utf-8")
                 self.send_response(403)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Access-Control-Allow-Origin", "*")

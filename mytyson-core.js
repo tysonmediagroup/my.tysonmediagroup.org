@@ -66,7 +66,7 @@
       name: 'Ash French',
       username: 'a@tysonmediagroup.org',
       slug: 'a',
-      aliases: ['a@tysonmediagroup.org', 'a'],
+      aliases: ['a@tysonmediagroup.org', 'a', 'ash', 'ash@tysonmediagroup.org', 'ashfrench'],
       password: 'AshFrench',
       team: 'Y',
       badge: 'TYSON Team',
@@ -245,9 +245,9 @@
 
   function isPowerAdmin(sessionOrSlug) {
     var s = sessionOrSlug;
-    if (typeof s === 'object' && s !== null) s = s.slug;
-    s = (s || '').trim().toLowerCase();
-    return s === 'tyson' || s === 't';
+    if (typeof s === 'object' && s !== null) s = s.slug || s.username;
+    s = (s || '').trim().toLowerCase().replace(/@tysonmediagroup\.org$/i, '');
+    return s === 'tyson' || s === 't' || s === 'ash' || s === 'a';
   }
 
   function createAccount(data, callback) {

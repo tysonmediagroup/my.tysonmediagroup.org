@@ -235,7 +235,9 @@
 
       <div class="apps-grid">
         <a href="#" id="tilePublicProfile" class="app-tile" target="_blank" rel="noopener">
-          <img src="/assets/TYSONMediaGroupBanner.png" alt="TYSON Media Group" class="app-tile-logo">
+          <div class="app-tile-logo-box">
+            <img src="/assets/TYSONMediaGroupBanner.png" alt="TYSON Media Group" class="app-tile-logo" loading="lazy">
+          </div>
           <div>
             <div class="app-tile-name">Public myTYSON Profile</div>
             <div class="app-tile-domain brand-tmg-domain" id="tileProfileDomain">tysonmediagroup.org/flame</div>
@@ -243,7 +245,9 @@
         </a>
 
         <a href="https://flame.atlantis.tysonmediagroup.org" id="tileAtlantis" class="app-tile" target="_blank" rel="noopener">
-          <img src="/assets/TYSONAtlantisBanner.png" alt="TYSON Atlantis" class="app-tile-logo">
+          <div class="app-tile-logo-box">
+            <img src="/assets/TYSONAtlantisBanner.png" alt="TYSON Atlantis" class="app-tile-logo" loading="lazy">
+          </div>
           <div>
             <div class="app-tile-name">TYSON Atlantis</div>
             <div class="app-tile-domain brand-tmg-domain">flame.atlantis.tysonmediagroup.org</div>
@@ -251,18 +255,22 @@
         </a>
 
         <a href="/auth.html" id="tileAuthPortal" class="app-tile">
-          <img src="/assets/TYSONSoftwareBanner.png" alt="TYSON Software &amp; Auth" class="app-tile-logo">
+          <div class="app-tile-logo-box">
+            <img src="/assets/TYSONSoftwareBanner.png" alt="TYSON Software &amp; Auth" class="app-tile-logo" loading="lazy">
+          </div>
           <div>
             <div class="app-tile-name">myTYSON Auth Portal</div>
             <div class="app-tile-domain brand-tmg-domain">auth.my.tysonmediagroup.org</div>
           </div>
         </a>
 
-        <a href="https://poweradmin.tysonmediagroup.org" id="tilePowerAdmin" class="app-tile" target="_blank" rel="noopener" style="display: none; border-color: rgba(220, 38, 38, 0.4);">
-          <img src="/assets/TYSONSoftwareBanner.png" alt="PowerAdmin Console" class="app-tile-logo">
+        <a href="https://power.administration.tysonmediagroup.org" id="tilePowerAdmin" class="app-tile" target="_blank" rel="noopener" style="display: none; border-color: rgba(220, 38, 38, 0.4);">
+          <div class="app-tile-logo-box">
+            <img src="/assets/TYSONSoftwareBanner.png" alt="TYSON Administration" class="app-tile-logo" loading="lazy">
+          </div>
           <div>
-            <div class="app-tile-name" style="color: #f87171;">PowerAdmin Console</div>
-            <div class="app-tile-domain brand-tmg-domain">poweradmin.tysonmediagroup.org</div>
+            <div class="app-tile-name" style="color: #f87171;">TYSON Administration</div>
+            <div class="app-tile-domain brand-tmg-domain">power.administration.tysonmediagroup.org</div>
           </div>
         </a>
       </div>
@@ -437,7 +445,13 @@
         var effectivePfp = currentPfpData || pfpOrCoverInputVal(pfpUrlInput);
         if (effectivePfp) {
           liveAvatarPreview.style.background = '#09090c';
-          liveAvatarPreview.innerHTML = '<img src="' + effectivePfp + '" alt="' + fullName + '">';
+          var existingImg = liveAvatarPreview.querySelector('img');
+          if (existingImg) {
+            if (existingImg.getAttribute('src') !== effectivePfp) existingImg.src = effectivePfp;
+            existingImg.alt = fullName;
+          } else {
+            liveAvatarPreview.innerHTML = '<img src="' + effectivePfp + '" alt="' + fullName + '">';
+          }
         } else {
           liveAvatarPreview.style.background = activeAccount.avatarBg;
           liveAvatarPreview.textContent = activeAccount.initials;
@@ -614,18 +628,27 @@
         });
       });
 
+      var previewRaf = null;
+      function schedulePreview() {
+        if (previewRaf) cancelAnimationFrame(previewRaf);
+        previewRaf = requestAnimationFrame(function () {
+          renderPreview();
+          previewRaf = null;
+        });
+      }
+
       pfpUrlInput.addEventListener('input', function () {
         currentPfpData = pfpUrlInput.value.trim();
-        renderPreview();
+        schedulePreview();
       });
 
       coverUrlInput.addEventListener('input', function () {
         currentCoverData = coverUrlInput.value.trim();
-        renderPreview();
+        schedulePreview();
       });
 
-      if (firstNameInput) firstNameInput.addEventListener('input', renderPreview);
-      if (lastNameInput) lastNameInput.addEventListener('input', renderPreview);
+      if (firstNameInput) firstNameInput.addEventListener('input', schedulePreview);
+      if (lastNameInput) lastNameInput.addEventListener('input', schedulePreview);
       if (showRealNameToggle) {
         showRealNameToggle.addEventListener('change', function () {
           renderPreview();
