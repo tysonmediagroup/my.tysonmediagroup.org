@@ -174,8 +174,13 @@
 
       <div class="form-grid">
         <div class="form-group">
-          <label class="form-label" for="displayNameInput">Display Name</label>
-          <input type="text" id="displayNameInput" class="form-input" placeholder="Full Name">
+          <label class="form-label" for="firstNameInput">First Name</label>
+          <input type="text" id="firstNameInput" class="form-input" placeholder="First Name">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="lastNameInput">Last Name</label>
+          <input type="text" id="lastNameInput" class="form-input" placeholder="Last Name">
         </div>
 
         <div class="form-group">
@@ -187,6 +192,20 @@
           <label class="form-label" for="readonlyUsername">myTYSON Username</label>
           <input type="text" id="readonlyUsername" class="form-input" readonly style="opacity: 0.75; cursor: not-allowed;">
         </div>
+      </div>
+
+      <!-- Real Name Visibility Show/Hide Toggle -->
+      <div class="toggle-card" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 14px 18px; margin: 14px 0 18px;">
+        <div>
+          <div style="font-weight: 600; color: var(--text-white); font-size: 1.05rem;">Show Real Name on Public Profile</div>
+          <div style="font-size: 0.88rem; color: var(--text-muted); margin-top: 3px;">
+            When enabled, your first and last name appear publicly. When toggled OFF, your public profile displays only your handle (<span class="brand-tmg-domain" id="toggleHandlePreview">@username</span>) and role.
+          </div>
+        </div>
+        <label class="switch-toggle" style="position: relative; display: inline-block; width: 50px; height: 28px; flex-shrink: 0; cursor: pointer;">
+          <input type="checkbox" id="showRealNameToggle" checked style="opacity: 0; width: 0; height: 0;">
+          <span class="toggle-slider" style="position: absolute; cursor: pointer; inset: 0; background-color: rgba(255,255,255,0.2); transition: .3s; border-radius: 28px; border: 1px solid var(--border-subtle);"></span>
+        </label>
       </div>
 
       <div class="form-group">
@@ -236,6 +255,14 @@
           <div>
             <div class="app-tile-name">myTYSON Auth Portal</div>
             <div class="app-tile-domain brand-tmg-domain">auth.my.tysonmediagroup.org</div>
+          </div>
+        </a>
+
+        <a href="https://poweradmin.tysonmediagroup.org" id="tilePowerAdmin" class="app-tile" target="_blank" rel="noopener" style="display: none; border-color: rgba(220, 38, 38, 0.4);">
+          <img src="/assets/TYSONSoftwareBanner.png" alt="PowerAdmin Console" class="app-tile-logo">
+          <div>
+            <div class="app-tile-name" style="color: #f87171;">PowerAdmin Console</div>
+            <div class="app-tile-domain brand-tmg-domain">poweradmin.tysonmediagroup.org</div>
           </div>
         </a>
       </div>
@@ -302,7 +329,10 @@
 
       var pfpUrlInput = document.getElementById('pfpUrlInput');
       var coverUrlInput = document.getElementById('coverUrlInput');
-      var displayNameInput = document.getElementById('displayNameInput');
+      var firstNameInput = document.getElementById('firstNameInput');
+      var lastNameInput = document.getElementById('lastNameInput');
+      var showRealNameToggle = document.getElementById('showRealNameToggle');
+      var toggleHandlePreview = document.getElementById('toggleHandlePreview');
       var divisionInput = document.getElementById('divisionInput');
       var readonlyUsername = document.getElementById('readonlyUsername');
       var bioInput = document.getElementById('bioInput');
@@ -366,12 +396,20 @@
       function renderPreview() {
         if (!activeAccount) return;
 
-        var dName = displayNameInput.value.trim() || activeAccount.name;
-        liveDisplayName.textContent = dName;
+        var fName = firstNameInput ? firstNameInput.value.trim() : '';
+        var lName = lastNameInput ? lastNameInput.value.trim() : '';
+        var fullName = [fName, lName].filter(Boolean).join(' ') || activeAccount.name;
+        var showReal = showRealNameToggle ? showRealNameToggle.checked : true;
+        var displayHeader = showReal ? fullName : ('@' + activeAccount.slug);
+
+        liveDisplayName.textContent = displayHeader;
         liveUsername.textContent = activeAccount.username;
         liveProfileUrl.innerHTML = '<span class="brand-tmg-domain">tysonmediagroup.org/' + activeAccount.slug + '</span> &bull; TYSON Team: ' + activeAccount.team;
         slugLabelInline.textContent = activeAccount.slug;
         readonlyUsername.value = activeAccount.username;
+        if (toggleHandlePreview) {
+          toggleHandlePreview.textContent = '@' + activeAccount.slug;
+        }
 
         liveRoleBadge.textContent = activeAccount.badge;
         liveRoleBadge.className = 'status-badge ' + activeAccount.badgeClass;
@@ -399,7 +437,7 @@
         var effectivePfp = currentPfpData || pfpOrCoverInputVal(pfpUrlInput);
         if (effectivePfp) {
           liveAvatarPreview.style.background = '#09090c';
-          liveAvatarPreview.innerHTML = '<img src="' + effectivePfp + '" alt="' + dName + '">';
+          liveAvatarPreview.innerHTML = '<img src="' + effectivePfp + '" alt="' + fullName + '">';
         } else {
           liveAvatarPreview.style.background = activeAccount.avatarBg;
           liveAvatarPreview.textContent = activeAccount.initials;
@@ -414,20 +452,52 @@
 
         var ssoToken = core.encodeSsoToken(core.getSession() || core.createSessionForAccount(activeAccount));
         document.getElementById('tileAtlantis').href = getAtlantisBase() + '?mytyson_sso=' + encodeURIComponent(ssoToken);
+
+        var tilePA = document.getElementById('tilePowerAdmin');
+        if (tilePA) {
+          tilePA.style.display = core.isPowerAdmin(activeAccount) ? 'flex' : 'none';
+        }
       }
 
-      function loadAccountIntoEditor(slug) {
-        var acc = core.findAccount(slug) || core.ACCOUNTS[0];
+      function loadAccountIntoEditor(slug, isPreview) {
+        var acc = core.findAccount(slug) || core.DEFAULT_ACCOUNTS[0];
         activeAccount = acc;
+
         if (topAuthBtn) {
-          topAuthBtn.textContent = 'Switch Account';
-          topAuthBtn.title = 'Signed in as ' + acc.username;
+          if (isPreview) {
+            topAuthBtn.textContent = 'Sign In';
+            topAuthBtn.title = 'Sign in to edit your profile';
+            topAuthBtn.href = getSsoPortalUrl();
+            topAuthBtn.onclick = null;
+          } else {
+            topAuthBtn.textContent = 'Sign Out (' + acc.slug + ')';
+            topAuthBtn.title = 'Signed in as ' + acc.username + ' - Click to sign out';
+            topAuthBtn.href = '#';
+            topAuthBtn.onclick = function (e) {
+              e.preventDefault();
+              core.clearSession();
+              window.location.replace(getSsoPortalUrl());
+            };
+          }
         }
-        core.createSessionForAccount(acc);
+
+        if (!isPreview) {
+          core.createSessionForAccount(acc);
+        }
 
         function applyCustomToInputs(custom) {
           custom = custom || {};
-          displayNameInput.value = custom.displayName || acc.name;
+          var nameParts = (custom.displayName || acc.name || '').trim().split(' ');
+          if (firstNameInput) {
+            firstNameInput.value = custom.firstName || (nameParts[0] || '');
+          }
+          if (lastNameInput) {
+            lastNameInput.value = custom.lastName || (nameParts.slice(1).join(' ') || '');
+          }
+          if (showRealNameToggle) {
+            showRealNameToggle.checked = custom.showRealName !== false;
+          }
+
           divisionInput.value = custom.division || acc.division;
           bioInput.value = custom.bio || acc.bio;
 
@@ -455,11 +525,19 @@
         var pfpFinal = pfpUrlInput.value.trim() || currentPfpData;
         var coverFinal = coverUrlInput.value.trim() || currentCoverData;
 
+        var fName = firstNameInput ? firstNameInput.value.trim() : '';
+        var lName = lastNameInput ? lastNameInput.value.trim() : '';
+        var fullName = [fName, lName].filter(Boolean).join(' ') || activeAccount.name;
+        var showReal = showRealNameToggle ? showRealNameToggle.checked : true;
+
         saveToast.textContent = 'Saving to myTYSON Cloud...';
         saveToast.classList.add('visible');
 
         core.saveCustomProfile(activeAccount.slug, {
-          displayName: displayNameInput.value.trim() || activeAccount.name,
+          displayName: fullName,
+          firstName: fName,
+          lastName: lName,
+          showRealName: showReal,
           division: divisionInput.value.trim() || activeAccount.division,
           bio: bioInput.value.trim() || activeAccount.bio,
           pfpUrl: pfpFinal,
@@ -546,7 +624,14 @@
         renderPreview();
       });
 
-      displayNameInput.addEventListener('input', renderPreview);
+      if (firstNameInput) firstNameInput.addEventListener('input', renderPreview);
+      if (lastNameInput) lastNameInput.addEventListener('input', renderPreview);
+      if (showRealNameToggle) {
+        showRealNameToggle.addEventListener('change', function () {
+          renderPreview();
+          saveChanges();
+        });
+      }
 
       document.querySelectorAll('[data-pfp-preset]').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -589,7 +674,7 @@
       document.getElementById('resetAllProfileBtn').addEventListener('click', function () {
         if (!activeAccount) return;
         core.resetCustomProfile(activeAccount.slug);
-        loadAccountIntoEditor(activeAccount.slug);
+        loadAccountIntoEditor(activeAccount.slug, false);
         saveToast.textContent = 'Profile reset to default myTYSON settings.';
         saveToast.classList.add('visible');
         setTimeout(function () {
@@ -598,26 +683,47 @@
         }, 3000);
       });
 
-      var params = new URLSearchParams(window.location.search);
-      var ssoParam = params.get('mytyson_sso');
-      if (ssoParam) {
-        try {
-          var sObj = JSON.parse(atob(ssoParam));
-          if (sObj && sObj.slug) {
-            loadAccountIntoEditor(sObj.slug);
+      function initDashboard() {
+        var params = new URLSearchParams(window.location.search);
+        var ssoParam = params.get('mytyson_sso');
+        if (ssoParam) {
+          try {
+            var sObj = JSON.parse(atob(ssoParam));
+            if (sObj && sObj.slug) {
+              var matched = core.findAccount(sObj.slug);
+              if (matched) {
+                loadAccountIntoEditor(sObj.slug, false);
+                return;
+              }
+            }
+          } catch (e) {}
+        }
+
+        var existingSession = core.getSession();
+        if (existingSession && existingSession.slug) {
+          var sAcc = core.findAccount(existingSession.slug);
+          if (sAcc) {
+            loadAccountIntoEditor(existingSession.slug, false);
             return;
           }
-        } catch (e) {}
+        }
+
+        var requestedUser = params.get('user');
+        if (requestedUser && core.findAccount(requestedUser)) {
+          // Preview mode: display requested user without forging a session
+          loadAccountIntoEditor(requestedUser, true);
+          return;
+        }
+
+        // Unauthenticated visitor with no session:
+        // DO NOT default to Stephen French! Redirect them to the SSO portal to Sign In or Create Account.
+        window.location.replace(getSsoPortalUrl());
       }
 
-      var requestedUser = params.get('user');
-      var existingSession = core.getSession();
-      if (requestedUser && core.findAccount(requestedUser)) {
-        loadAccountIntoEditor(requestedUser);
-      } else if (existingSession && existingSession.slug) {
-        loadAccountIntoEditor(existingSession.slug);
+      if (core.syncAccountsFromCloud) {
+        core.syncAccountsFromCloud(initDashboard);
       } else {
-        loadAccountIntoEditor('flame');
+        initDashboard();
       }
     })();
   </script>

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>myTYSON Single Sign-On | auth.my.tysonmediagroup.org</title>
   <link rel="stylesheet" href="/styles.css">
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body class="auth-page-body">
 
@@ -59,8 +60,15 @@
         </div>
       </div>
 
+      <!-- Tab Switcher: Sign In vs Create Account -->
+      <div class="auth-nav-tabs">
+        <button type="button" class="auth-nav-tab active" id="tabSignInBtn">Sign In</button>
+        <button type="button" class="auth-nav-tab" id="tabRegisterBtn">Create Account</button>
+      </div>
+
       <div class="auth-error" id="authErrorBox">Invalid myTYSON username or password.</div>
 
+      <!-- Sign In Form -->
       <form id="ssoLoginForm" autocomplete="off">
         <div class="form-group">
           <label class="form-label" for="ssoUsername">Username</label>
@@ -74,6 +82,59 @@
 
         <button type="submit" class="btn btn-primary" style="width: 100%; padding: 13px 18px; font-size: 1.25rem; margin-top: 6px;">
           Sign In &rarr;
+        </button>
+      </form>
+
+      <!-- Create Account Form (Minimum 3 chars username rule enforced) -->
+      <form id="ssoRegisterForm" autocomplete="off" style="display: none;">
+        <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="regFirstName">First Name</label>
+            <input type="text" id="regFirstName" class="form-input" placeholder="First Name" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="regLastName">Last Name</label>
+            <input type="text" id="regLastName" class="form-input" placeholder="Last Name" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="regUsername">Choose myTYSON Username</label>
+          <input type="text" id="regUsername" class="form-input" placeholder="e.g. alexander" minlength="3" maxlength="30" required pattern="^[a-zA-Z0-9._-]+$">
+          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;" id="regUsernameHelp">
+            Must be at least 3 characters. Address: <span class="brand-tmg-domain" id="regHandlePreview">username@tysonmediagroup.org</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="regPassword">Password</label>
+          <input type="password" id="regPassword" class="form-input" placeholder="Minimum 6 characters" minlength="6" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="regConfirmPassword">Confirm Password</label>
+          <input type="password" id="regConfirmPassword" class="form-input" placeholder="Confirm password" minlength="6" required>
+        </div>
+
+        <!-- Real Name Visibility Toggle in Signup -->
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px;">
+          <div>
+            <div style="font-size: 0.92rem; font-weight: 600; color: var(--text-white);">Show Real Name Publicly</div>
+            <div style="font-size: 0.78rem; color: var(--text-muted);">Displays real name on your public profile</div>
+          </div>
+          <label class="switch-toggle">
+            <input type="checkbox" id="regShowRealName" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- Cloudflare Turnstile Bot Verification -->
+        <div style="margin: 14px 0 16px; display: flex; justify-content: center; min-height: 65px;">
+          <div class="cf-turnstile" id="signupTurnstile" data-sitekey="0x4AAAAAAABBCDEFGH" data-theme="dark" data-action="signup"></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 13px 18px; font-size: 1.25rem; margin-top: 6px;" id="createAccountSubmitBtn">
+          Create Account &rarr;
         </button>
       </form>
     </div>
@@ -176,11 +237,20 @@
           domain: 'my.tysonmediagroup.org',
           logo: '/assets/TYSONMediaGroupBanner.png',
           fallbackUrl: getDefaultDashboardUrl()
+        },
+        poweradmin: {
+          name: 'PowerAdmin Console',
+          domain: 'poweradmin.tysonmediagroup.org',
+          logo: '/assets/TYSONSoftwareBanner.png',
+          fallbackUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8098/' : 'https://poweradmin.tysonmediagroup.org/'
         }
       };
 
       function detectAppConfig() {
         var checkStr = (appParam + ' ' + redirectParam + ' ' + (document.referrer || '')).toLowerCase();
+        if (checkStr.indexOf('poweradmin') !== -1 || appParam === 'poweradmin' || checkStr.indexOf(':8098') !== -1) {
+          return APP_BRANDING.poweradmin;
+        }
         if (checkStr.indexOf('atlantis') !== -1 || checkStr.indexOf(':8095') !== -1) {
           return APP_BRANDING.atlantis;
         }
@@ -261,7 +331,53 @@
       });
 
       var form = document.getElementById('ssoLoginForm');
+      var regForm = document.getElementById('ssoRegisterForm');
       var errBox = document.getElementById('authErrorBox');
+      var tabSignIn = document.getElementById('tabSignInBtn');
+      var tabRegister = document.getElementById('tabRegisterBtn');
+      var regUsernameInput = document.getElementById('regUsername');
+      var regHandlePreview = document.getElementById('regHandlePreview');
+      var regUsernameHelp = document.getElementById('regUsernameHelp');
+
+      if (core.syncAccountsFromCloud) {
+        core.syncAccountsFromCloud();
+      }
+
+      function switchAuthTab(tab) {
+        errBox.classList.remove('visible');
+        if (tab === 'register') {
+          tabSignIn.classList.remove('active');
+          tabRegister.classList.add('active');
+          form.style.display = 'none';
+          regForm.style.display = 'block';
+          mainHeading.textContent = 'Create ' + activeApp.name + ' Account';
+          document.getElementById('regFirstName').focus();
+        } else {
+          tabRegister.classList.remove('active');
+          tabSignIn.classList.add('active');
+          regForm.style.display = 'none';
+          form.style.display = 'block';
+          mainHeading.textContent = 'Sign in to ' + activeApp.name;
+          document.getElementById('ssoUsername').focus();
+        }
+      }
+
+      tabSignIn.addEventListener('click', function () { switchAuthTab('signin'); });
+      tabRegister.addEventListener('click', function () { switchAuthTab('register'); });
+
+      regUsernameInput.addEventListener('input', function () {
+        var val = (regUsernameInput.value || '').trim().toLowerCase();
+        if (regHandlePreview) {
+          regHandlePreview.textContent = (val || 'username') + '@tysonmediagroup.org';
+        }
+        if (val.length > 0 && val.length < 3) {
+          regUsernameHelp.style.color = '#f87171';
+          regUsernameHelp.innerHTML = 'Username must be at least 3 characters. Handles under 3 chars are reserved for staff.';
+        } else {
+          regUsernameHelp.style.color = 'var(--text-muted)';
+          regUsernameHelp.innerHTML = 'Address: <span class="brand-tmg-domain">' + (val || 'username') + '@tysonmediagroup.org</span>';
+        }
+      });
 
       form.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -271,10 +387,66 @@
 
         var session = core.authenticate(userVal, passVal);
         if (!session) {
+          errBox.textContent = 'Invalid myTYSON username or password.';
           errBox.classList.add('visible');
           return;
         }
         completeRedirectWithSession(session);
+      });
+
+      regForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        errBox.classList.remove('visible');
+
+        var fName = document.getElementById('regFirstName').value.trim();
+        var lName = document.getElementById('regLastName').value.trim();
+        var uName = regUsernameInput.value.trim().toLowerCase();
+        var p1 = document.getElementById('regPassword').value;
+        var p2 = document.getElementById('regConfirmPassword').value;
+        var showReal = document.getElementById('regShowRealName').checked;
+
+        // Validation rule: accounts created through basic account creator cannot have username < 3 characters
+        if (uName.length < 3) {
+          errBox.textContent = 'Username must be at least 3 characters long.';
+          errBox.classList.add('visible');
+          regUsernameInput.focus();
+          return;
+        }
+
+        if (p1 !== p2) {
+          errBox.textContent = 'Passwords do not match.';
+          errBox.classList.add('visible');
+          return;
+        }
+
+        if (p1.length < 6) {
+          errBox.textContent = 'Password must be at least 6 characters.';
+          errBox.classList.add('visible');
+          return;
+        }
+
+        core.createAccount({
+          username: uName,
+          slug: uName,
+          firstName: fName,
+          lastName: lName,
+          name: [fName, lName].filter(Boolean).join(' '),
+          password: p1,
+          showRealName: showReal,
+          isPowerAdmin: false
+        }, function (res) {
+          if (!res || !res.ok) {
+            errBox.textContent = (res && res.error) ? res.error : 'Account creation failed.';
+            errBox.classList.add('visible');
+            return;
+          }
+
+          var session = core.authenticate(res.account.username, p1);
+          if (!session) {
+            session = core.createSessionForAccount(res.account);
+          }
+          completeRedirectWithSession(session);
+        });
       });
     })();
   </script>

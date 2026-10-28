@@ -1,3 +1,5 @@
 .local_profiles.json
+.local_accounts.json
 .DS_Store
 node_modules/
+.wrangler/

@@ -1247,6 +1247,90 @@ body {
   border-color: var(--border-hover);
 }
 
+/* Switch Toggle Component */
+.switch-toggle {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.switch-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.switch-toggle .toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.16);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 28px;
+  border: 1px solid var(--border-subtle);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.switch-toggle .toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background: #ffffff;
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.switch-toggle input:checked + .toggle-slider {
+  background: #10b981;
+  border-color: #059669;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+}
+
+.switch-toggle input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+  background: #ffffff;
+}
+
+/* Auth View Switcher Tabs */
+.auth-nav-tabs {
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 22px;
+  gap: 6px;
+}
+
+.auth-nav-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.auth-nav-tab.active {
+  background: var(--bg-surface-hover);
+  color: var(--text-white);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
 /* ==========================================================================
    Comprehensive Responsive Overhaul for Mobile & Half-Screen Split Views
    Breakpoints:

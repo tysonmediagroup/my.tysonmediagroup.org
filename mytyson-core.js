@@ -1,6 +1,7 @@
 (function (window) {
   var STORAGE_KEY = 'mytyson_session_v1';
   var CUSTOM_KEY_PREFIX = 'mytyson_profile_custom_';
+  var CUSTOM_ACCOUNTS_KEY = 'mytyson_custom_accounts_v1';
   var THEME_KEY = 'tyson_active_theme';
   var CHUNK_COUNT = 8;
   var CHUNK_SIZE = 2800;
@@ -197,15 +198,229 @@
     return 'https://my.tysonmediagroup.org';
   }
 
+  function getCustomAccounts() {
+    try {
+      var raw = localStorage.getItem(CUSTOM_ACCOUNTS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveCustomAccounts(accounts) {
+    try {
+      localStorage.setItem(CUSTOM_ACCOUNTS_KEY, JSON.stringify(accounts || []));
+    } catch (e) {}
+  }
+
+  function getAllAccounts() {
+    var custom = getCustomAccounts();
+    var map = {};
+    for (var i = 0; i < DEFAULT_ACCOUNTS.length; i++) {
+      var d = DEFAULT_ACCOUNTS[i];
+      map[d.slug.toLowerCase()] = Object.assign({}, d);
+    }
+    for (var j = 0; j < custom.length; j++) {
+      var c = custom[j];
+      if (c && c.slug) {
+        var k = c.slug.toLowerCase();
+        map[k] = Object.assign({}, map[k] || {}, c);
+      }
+    }
+    return Object.values(map);
+  }
+
   function findAccount(identifier) {
     if (!identifier) return null;
     var clean = identifier.trim().toLowerCase();
-    for (var i = 0; i < DEFAULT_ACCOUNTS.length; i++) {
-      var acc = DEFAULT_ACCOUNTS[i];
-      if (acc.slug.toLowerCase() === clean) return acc;
-      if (acc.aliases.indexOf(clean) !== -1) return acc;
+    var all = getAllAccounts();
+    for (var i = 0; i < all.length; i++) {
+      var acc = all[i];
+      if (acc.slug && acc.slug.toLowerCase() === clean) return acc;
+      if (acc.username && acc.username.toLowerCase() === clean) return acc;
+      if (acc.aliases && acc.aliases.some(function (a) { return (a || '').toLowerCase() === clean; })) return acc;
     }
     return null;
+  }
+
+  function isPowerAdmin(sessionOrSlug) {
+    var s = sessionOrSlug;
+    if (typeof s === 'object' && s !== null) s = s.slug;
+    s = (s || '').trim().toLowerCase();
+    return s === 'tyson' || s === 't';
+  }
+
+  function createAccount(data, callback) {
+    var rawSlug = (data.slug || data.username || '').trim().toLowerCase();
+    var cleanSlug = rawSlug.replace(/@tysonmediagroup\.org$/i, '').trim();
+
+    // Basic user accounts must NOT have usernames under 3 characters!
+    // Poweradmin accounts (isPowerAdmin=true) are exempt from this limit.
+    if (!data.isPowerAdmin) {
+      if (cleanSlug.length < 3) {
+        var errRes = { ok: false, error: 'Username must be at least 3 characters long.' };
+        if (typeof callback === 'function') callback(errRes);
+        return errRes;
+      }
+      if (!/^[a-z0-9._-]+$/i.test(cleanSlug)) {
+        var errFmt = { ok: false, error: 'Username may only contain letters, numbers, periods, and hyphens.' };
+        if (typeof callback === 'function') callback(errFmt);
+        return errFmt;
+      }
+    }
+
+    if (findAccount(cleanSlug)) {
+      var errExists = { ok: false, error: 'Account with handle "' + cleanSlug + '" already exists.' };
+      if (typeof callback === 'function') callback(errExists);
+      return errExists;
+    }
+
+    var firstName = (data.firstName || '').trim();
+    var lastName = (data.lastName || '').trim();
+    var dName = (data.name || [firstName, lastName].filter(Boolean).join(' ') || cleanSlug).trim();
+
+    var initials = ((firstName[0] || '') + (lastName[0] || (cleanSlug[0] || ''))).toUpperCase() || 'TM';
+    var isTeam = (data.team === 'Y' || data.team === true || data.isTeam === true);
+
+    var newAcc = {
+      name: dName,
+      firstName: firstName,
+      lastName: lastName,
+      showRealName: data.showRealName !== false,
+      username: cleanSlug + '@tysonmediagroup.org',
+      slug: cleanSlug,
+      aliases: [cleanSlug + '@tysonmediagroup.org', cleanSlug],
+      password: data.password || 'password123',
+      team: isTeam ? 'Y' : 'N',
+      badge: data.badge || (isTeam ? 'TYSON Team' : 'Standard Member'),
+      badgeClass: data.badgeClass || (isTeam ? 'badge-team' : 'badge-member'),
+      hasTysonBadge: data.hasTysonBadge !== undefined ? !!data.hasTysonBadge : isTeam,
+      initials: initials,
+      avatarBg: data.avatarBg || 'linear-gradient(135deg, #18181b 0%, #09090b 100%)',
+      coverBg: data.coverBg || 'linear-gradient(125deg, #18181b 0%, #09090b 65%, #050505 100%)',
+      defaultCoverUrl: data.defaultCoverUrl || '',
+      role: data.role || (isTeam ? 'TYSON Team Member' : 'Registered Member'),
+      division: data.division || 'TYSON Media Group',
+      bio: data.bio || ('myTYSON profile for ' + dName + '.'),
+      pfpUrl: data.pfpUrl || '',
+      isDynamic: true,
+      createdAt: Date.now()
+    };
+
+    var custom = getCustomAccounts();
+    custom.push(newAcc);
+    saveCustomAccounts(custom);
+
+    // Save profile defaults
+    saveCustomProfile(cleanSlug, {
+      displayName: dName,
+      firstName: firstName,
+      lastName: lastName,
+      showRealName: newAcc.showRealName,
+      division: newAcc.division,
+      bio: newAcc.bio,
+      pfpUrl: newAcc.pfpUrl,
+      coverUrl: ''
+    });
+
+    // Cloud sync to /api/accounts
+    var apiBase = getCloudApiBase();
+    fetch(apiBase + '/api/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newAcc)
+    }).catch(function () {});
+
+    var res = { ok: true, account: newAcc };
+    if (typeof callback === 'function') callback(res);
+    return res;
+  }
+
+  function updateAccount(slug, updates, callback) {
+    if (!slug) return;
+    var clean = slug.toLowerCase();
+    var custom = getCustomAccounts();
+    var idx = custom.findIndex(function (a) { return a.slug.toLowerCase() === clean; });
+    var target = null;
+    if (idx >= 0) {
+      custom[idx] = Object.assign({}, custom[idx], updates);
+      target = custom[idx];
+      saveCustomAccounts(custom);
+    } else {
+      var d = DEFAULT_ACCOUNTS.find(function (a) { return a.slug.toLowerCase() === clean; });
+      if (d) {
+        target = Object.assign({}, d, updates, { isDynamic: true });
+        custom.push(target);
+        saveCustomAccounts(custom);
+      }
+    }
+
+    if (target) {
+      var apiBase = getCloudApiBase();
+      fetch(apiBase + '/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(target)
+      }).catch(function () {});
+    }
+
+    var res = { ok: !!target, account: target };
+    if (typeof callback === 'function') callback(res);
+    return res;
+  }
+
+  function deleteAccount(slug, callback) {
+    if (!slug) return;
+    var clean = slug.toLowerCase();
+    if (clean === 'tyson' || clean === 't') {
+      var errRes = { ok: false, error: 'Cannot delete primary root admin account.' };
+      if (typeof callback === 'function') callback(errRes);
+      return errRes;
+    }
+
+    var custom = getCustomAccounts();
+    custom = custom.filter(function (a) { return a.slug.toLowerCase() !== clean; });
+    saveCustomAccounts(custom);
+
+    var apiBase = getCloudApiBase();
+    fetch(apiBase + '/api/accounts?slug=' + encodeURIComponent(clean), {
+      method: 'DELETE'
+    }).catch(function () {});
+
+    resetCustomProfile(clean);
+
+    var res = { ok: true };
+    if (typeof callback === 'function') callback(res);
+    return res;
+  }
+
+  function syncAccountsFromCloud(callback) {
+    var apiBase = getCloudApiBase();
+    fetch(apiBase + '/api/accounts?_t=' + Date.now())
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (cloudAccounts) {
+        if (Array.isArray(cloudAccounts)) {
+          var local = getCustomAccounts();
+          var map = {};
+          for (var i = 0; i < local.length; i++) {
+            if (local[i] && local[i].slug) map[local[i].slug.toLowerCase()] = local[i];
+          }
+          for (var j = 0; j < cloudAccounts.length; j++) {
+            var ca = cloudAccounts[j];
+            if (ca && ca.slug) {
+              map[ca.slug.toLowerCase()] = Object.assign({}, map[ca.slug.toLowerCase()] || {}, ca);
+            }
+          }
+          saveCustomAccounts(Object.values(map));
+        }
+        if (typeof callback === 'function') callback(getAllAccounts());
+      })
+      .catch(function () {
+        if (typeof callback === 'function') callback(getAllAccounts());
+      });
   }
 
   function authenticate(identifier, password) {
@@ -274,6 +489,9 @@
     var payload = {
       slug: slug,
       displayName: data.displayName || '',
+      firstName: data.firstName || '',
+      lastName: data.lastName || '',
+      showRealName: data.showRealName !== false,
       bio: data.bio || '',
       division: data.division || '',
       pfpUrl: data.pfpUrl || '',
@@ -445,12 +663,19 @@
   document.addEventListener('DOMContentLoaded', initThemeDrawer);
 
   window.MyTysonCore = {
+    DEFAULT_ACCOUNTS: DEFAULT_ACCOUNTS,
     ACCOUNTS: DEFAULT_ACCOUNTS,
+    getAllAccounts: getAllAccounts,
     findAccount: findAccount,
     authenticate: authenticate,
     createSessionForAccount: createSessionForAccount,
     getSession: getSession,
     clearSession: clearSession,
+    isPowerAdmin: isPowerAdmin,
+    createAccount: createAccount,
+    updateAccount: updateAccount,
+    deleteAccount: deleteAccount,
+    syncAccountsFromCloud: syncAccountsFromCloud,
     getCustomProfile: getCustomProfile,
     saveCustomProfile: saveCustomProfile,
     fetchCloudProfile: fetchCloudProfile,
