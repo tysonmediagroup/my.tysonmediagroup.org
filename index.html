@@ -348,11 +348,13 @@
           displayName: custom.displayName || '',
           bio: custom.bio || '',
           division: custom.division || '',
-          pfpUrl: (custom.pfpUrl && custom.pfpUrl.length < 2400) ? custom.pfpUrl : '',
-          coverUrl: (custom.coverUrl && custom.coverUrl.length < 2400) ? custom.coverUrl : ''
+          pfpUrl: (custom.pfpUrl && !custom.pfpUrl.startsWith('data:') && custom.pfpUrl.length < 500) ? custom.pfpUrl : '',
+          coverUrl: (custom.coverUrl && !custom.coverUrl.startsWith('data:') && custom.coverUrl.length < 500) ? custom.coverUrl : ''
         };
         try {
-          params.set('mytyson_custom', btoa(JSON.stringify(syncPayload)));
+          if (syncPayload.displayName || syncPayload.pfpUrl || syncPayload.coverUrl) {
+            params.set('mytyson_custom', btoa(JSON.stringify(syncPayload)));
+          }
         } catch (e) {}
         return base + '?' + params.toString();
       }
@@ -488,13 +490,13 @@
               canvas.width = maxW;
               canvas.height = maxH;
               ctx.drawImage(img, sx, sy, side, side, 0, 0, maxW, maxH);
-              callback(canvas.toDataURL('image/jpeg', 0.78));
+              callback(canvas.toDataURL('image/jpeg', 0.72));
             } else {
               var ratio = Math.min(maxW / img.width, maxH / img.height, 1);
               canvas.width = Math.round(img.width * ratio);
               canvas.height = Math.round(img.height * ratio);
               ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              callback(canvas.toDataURL('image/jpeg', 0.80));
+              callback(canvas.toDataURL('image/jpeg', 0.70));
             }
           };
           img.src = e.target.result;
@@ -511,7 +513,7 @@
       document.getElementById('pfpFileInput').addEventListener('change', function (e) {
         var file = e.target.files && e.target.files[0];
         if (!file) return;
-        resizeUploadedImage(file, 220, 220, true, function (dataUrl) {
+        resizeUploadedImage(file, 180, 180, true, function (dataUrl) {
           currentPfpData = dataUrl;
           pfpUrlInput.value = '';
           saveChanges();
@@ -527,7 +529,7 @@
       document.getElementById('coverFileInput').addEventListener('change', function (e) {
         var file = e.target.files && e.target.files[0];
         if (!file) return;
-        resizeUploadedImage(file, 960, 340, false, function (dataUrl) {
+        resizeUploadedImage(file, 800, 280, false, function (dataUrl) {
           currentCoverData = dataUrl;
           coverUrlInput.value = '';
           saveChanges();

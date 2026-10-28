@@ -44,8 +44,9 @@ async function readProfile(slug, env) {
 
 async function writeProfile(slug, data, env, ctx) {
   if (!slug) return {};
-  MEMORY_PROFILES.set(slug, data);
-  const raw = JSON.stringify(data);
+  const enriched = Object.assign({ slug: slug }, data, { updatedAt: data.updatedAt || Date.now() });
+  MEMORY_PROFILES.set(slug, enriched);
+  const raw = JSON.stringify(enriched);
 
   // 1. Save to KV if bound
   if (env && env.MYTYSON_KV) {
@@ -71,7 +72,7 @@ async function writeProfile(slug, data, env, ctx) {
     }
   } catch (e) {}
 
-  return data;
+  return enriched;
 }
 
 export default {
@@ -93,8 +94,14 @@ export default {
         });
       }
 
-      if (request.method === "GET") {
+      if (request.method === "GET" || request.method === "HEAD") {
         const profile = await readProfile(slug, env);
+        if (request.method === "HEAD") {
+          return new Response(null, {
+            status: 200,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+          });
+        }
         return new Response(JSON.stringify(profile || {}), {
           status: 200,
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" }

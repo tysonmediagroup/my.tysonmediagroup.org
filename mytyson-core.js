@@ -2,8 +2,8 @@
   var STORAGE_KEY = 'mytyson_session_v1';
   var CUSTOM_KEY_PREFIX = 'mytyson_profile_custom_';
   var THEME_KEY = 'tyson_active_theme';
-  var CHUNK_COUNT = 6;
-  var CHUNK_SIZE = 3200;
+  var CHUNK_COUNT = 8;
+  var CHUNK_SIZE = 2800;
 
   var DEFAULT_ACCOUNTS = [
     {
@@ -157,23 +157,25 @@
     return match ? decodeURIComponent(match[1]) : null;
   }
 
-  // Write chunked cookies across .tysonmediagroup.org so base64 PFPs up to ~18KB survive cookie limits
+  // Write chunked cookies across .tysonmediagroup.org so base64 PFPs survive cookie limits
   function writeChunkedCookie(slug, rawJson) {
     if (!slug) return;
-    for (var c = 0; c < CHUNK_COUNT; c++) {
-      var part = rawJson ? rawJson.slice(c * CHUNK_SIZE, (c + 1) * CHUNK_SIZE) : '';
-      if (part) {
-        setSharedCookie('mytyson_p' + c + '_' + slug, part, 365);
-      } else {
-        setSharedCookie('mytyson_p' + c + '_' + slug, '', -1);
+    for (var c = 0; c < 12; c++) {
+      if (c < CHUNK_COUNT && rawJson) {
+        var part = rawJson.slice(c * CHUNK_SIZE, (c + 1) * CHUNK_SIZE);
+        if (part) {
+          setSharedCookie('mytyson_p' + c + '_' + slug, part, 365);
+          continue;
+        }
       }
+      setSharedCookie('mytyson_p' + c + '_' + slug, '', -1);
     }
   }
 
   function readChunkedCookie(slug) {
     if (!slug) return null;
     var combined = '';
-    for (var c = 0; c < CHUNK_COUNT; c++) {
+    for (var c = 0; c < 12; c++) {
       var part = getSharedCookie('mytyson_p' + c + '_' + slug);
       if (!part) break;
       combined += part;
@@ -188,8 +190,9 @@
 
   function getCloudApiBase() {
     var h = window.location.hostname;
+    var port = window.location.port;
     if (h === 'localhost' || h === '127.0.0.1') {
-      return '';
+      return (port === '8097' || !port) ? '' : 'http://localhost:8097';
     }
     return 'https://my.tysonmediagroup.org';
   }
@@ -282,17 +285,17 @@
       localStorage.setItem(CUSTOM_KEY_PREFIX + slug, raw);
     } catch (e) {}
 
-    // Write chunked cookie if total payload fits in 6 chunks (~19KB)
+    // Write chunked cookie if total payload fits in chunk quota
     if (raw.length <= CHUNK_COUNT * CHUNK_SIZE) {
       writeChunkedCookie(slug, raw);
     } else {
-      // If cover photo is also base64 and huge, at least store PFP + metadata in chunked cookie
+      // If cover photo is huge, at least store PFP + metadata in chunked cookie
       var pfpPayload = JSON.stringify({
         slug: slug,
         displayName: payload.displayName,
         bio: payload.bio,
         division: payload.division,
-        pfpUrl: (payload.pfpUrl && payload.pfpUrl.length <= 16500) ? payload.pfpUrl : '',
+        pfpUrl: payload.pfpUrl || '',
         coverUrl: (payload.coverUrl && !payload.coverUrl.startsWith('data:')) ? payload.coverUrl : '',
         updatedAt: payload.updatedAt
       });
@@ -332,12 +335,28 @@
         return r.json();
       })
       .then(function (cloudData) {
-        if (cloudData && cloudData.slug) {
+        if (cloudData && (cloudData.slug || cloudData.pfpUrl || cloudData.displayName || cloudData.updatedAt)) {
           var local = getCustomProfile(slug);
-          if (!local.updatedAt || (cloudData.updatedAt && cloudData.updatedAt >= local.updatedAt)) {
+          if (!local.updatedAt || (cloudData.updatedAt && cloudData.updatedAt >= local.updatedAt) || (cloudData.pfpUrl && !local.pfpUrl)) {
             try {
               localStorage.setItem(CUSTOM_KEY_PREFIX + slug, JSON.stringify(cloudData));
             } catch (e) {}
+            var rawJson = JSON.stringify(cloudData);
+            if (rawJson.length <= CHUNK_COUNT * CHUNK_SIZE) {
+              writeChunkedCookie(slug, rawJson);
+            } else if (cloudData.pfpUrl) {
+              var compact = JSON.stringify({
+                slug: slug,
+                displayName: cloudData.displayName || '',
+                bio: cloudData.bio || '',
+                division: cloudData.division || '',
+                pfpUrl: cloudData.pfpUrl,
+                updatedAt: cloudData.updatedAt
+              });
+              if (compact.length <= CHUNK_COUNT * CHUNK_SIZE) {
+                writeChunkedCookie(slug, compact);
+              }
+            }
             if (typeof callback === 'function') callback(cloudData);
             return;
           }
