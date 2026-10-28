@@ -134,6 +134,48 @@
       role: 'Registered User',
       division: 'Independent / External',
       bio: 'Registered myTYSON account for Jake Gantt.'
+    },
+    {
+      name: 'Eythn Cullia',
+      firstName: '',
+      lastName: '',
+      showRealName: false,
+      username: 'eythn@tysonmediagroup.org',
+      slug: 'eythn',
+      aliases: ['eythn@tysonmediagroup.org', 'eythn'],
+      password: 'ej121',
+      team: 'Y',
+      badge: 'TYSON Team',
+      badgeClass: 'badge-team',
+      hasTysonBadge: true,
+      initials: 'EC',
+      avatarBg: 'linear-gradient(135deg, #18181b 0%, #09090b 100%)',
+      coverBg: 'linear-gradient(125deg, #18181b 0%, #09090b 65%, #050505 100%)',
+      defaultCoverUrl: '',
+      role: 'Marketing Coordinator',
+      division: 'TYSON Media Group',
+      bio: 'myTYSON profile for Eythn Cullia.'
+    },
+    {
+      name: 'Jason May',
+      firstName: 'Jason',
+      lastName: 'May',
+      showRealName: true,
+      username: 'jmay@tysonmediagroup.org',
+      slug: 'jmay',
+      aliases: ['jmay@tysonmediagroup.org', 'jmay'],
+      password: '102280919',
+      team: 'N',
+      badge: 'Standard Member',
+      badgeClass: 'badge-member',
+      hasTysonBadge: false,
+      initials: 'JM',
+      avatarBg: 'linear-gradient(135deg, #18181b 0%, #09090b 100%)',
+      coverBg: 'linear-gradient(125deg, #18181b 0%, #09090b 65%, #050505 100%)',
+      defaultCoverUrl: '',
+      role: 'Registered Member',
+      division: 'TYSON Media Group',
+      bio: 'myTYSON profile for Jason May.'
     }
   ];
 
@@ -304,6 +346,7 @@
       bio: data.bio || ('myTYSON profile for ' + dName + '.'),
       pfpUrl: data.pfpUrl || '',
       isDynamic: true,
+      isPowerAdmin: !!data.isPowerAdmin,
       createdAt: Date.now()
     };
 
@@ -329,11 +372,25 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newAcc)
-    }).catch(function () {});
+    })
+      .then(function (r) {
+        if (!r.ok) {
+          return r.json().then(function (err) {
+            throw new Error((err && err.error) || ('Server returned HTTP ' + r.status));
+          });
+        }
+        return r.json();
+      })
+      .then(function () {
+        var res = { ok: true, account: newAcc };
+        if (typeof callback === 'function') callback(res);
+      })
+      .catch(function (e) {
+        var res = { ok: true, account: newAcc, syncNotice: e.message };
+        if (typeof callback === 'function') callback(res);
+      });
 
-    var res = { ok: true, account: newAcc };
-    if (typeof callback === 'function') callback(res);
-    return res;
+    return { ok: true, account: newAcc };
   }
 
   function updateAccount(slug, updates, callback) {

@@ -386,12 +386,31 @@
         var passVal = document.getElementById('ssoPassword').value;
 
         var session = core.authenticate(userVal, passVal);
-        if (!session) {
-          errBox.textContent = 'Invalid myTYSON username or password.';
-          errBox.classList.add('visible');
+        if (session) {
+          completeRedirectWithSession(session);
           return;
         }
-        completeRedirectWithSession(session);
+
+        var submitBtn = form.querySelector('button[type="submit"]');
+        var oldText = submitBtn ? submitBtn.textContent : '';
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Authenticating...';
+        }
+
+        core.syncAccountsFromCloud(function () {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = oldText;
+          }
+          var retrySession = core.authenticate(userVal, passVal);
+          if (retrySession) {
+            completeRedirectWithSession(retrySession);
+          } else {
+            errBox.textContent = 'Invalid myTYSON username or password.';
+            errBox.classList.add('visible');
+          }
+        });
       });
 
       regForm.addEventListener('submit', function (e) {
