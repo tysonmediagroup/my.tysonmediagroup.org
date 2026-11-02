@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>myTYSON Single Sign-On | auth.my.tysonmediagroup.org</title>
+  <link rel="icon" type="image/jpeg" href="/assets/TYSONAuthenticationIcon.jpg">
+  <link rel="apple-touch-icon" href="/assets/TYSONAuthenticationIcon.jpg">
   <link rel="stylesheet" href="/styles.css">
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -107,7 +109,7 @@
 
       <!-- Create Account Form (Minimum 3 chars username rule enforced) -->
       <form id="ssoRegisterForm" autocomplete="off" style="display: none;">
-        <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div class="form-grid" style="margin-bottom: 12px;">
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="regFirstName">First Name</label>
             <input type="text" id="regFirstName" class="form-input" placeholder="First Name" required>
@@ -173,7 +175,7 @@
           Welcome! Complete your myTYSON identity to finish signing in with Google.
         </p>
 
-        <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div class="form-grid" style="margin-bottom: 12px;">
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label" for="googleFirstName">First Name</label>
             <input type="text" id="googleFirstName" class="form-input" placeholder="First Name">
@@ -609,12 +611,13 @@
 
               if (btnWrap) {
                 btnWrap.innerHTML = '';
+                var gsiWidth = Math.min(380, Math.max(220, Math.floor(btnWrap.clientWidth || (window.innerWidth - 64))));
                 window.google.accounts.id.renderButton(btnWrap, {
                   theme: 'filled_black',
                   size: 'large',
                   text: 'continue_with',
                   shape: 'rectangular',
-                  width: 380,
+                  width: gsiWidth,
                   logo_alignment: 'left'
                 });
                 if (fallbackBtn) {
