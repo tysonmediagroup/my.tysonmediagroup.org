@@ -1182,7 +1182,7 @@ export async function handleApiRequest(request, env, ctxOrContext) {
           authorSlug: authorAcc.slug,
           authorName: authorAcc.name || authorAcc.slug,
           authorHandle: `${authorAcc.slug}@tysonmediagroup.org`,
-          authorRole: authorAcc.role || "TYSON Team",
+          authorRole: authorAcc.slug === "t" ? "Owner" : (authorAcc.role || "TYSON Team"),
           createdAt: body.createdAt || now,
           updatedAt: now
         };
@@ -1217,7 +1217,7 @@ const DEFAULT_BLOG_POSTS = [
     authorSlug: "t",
     authorName: "Tyler Custine",
     authorHandle: "t@tysonmediagroup.org",
-    authorRole: "Founder, Lead Developer & Executive Director",
+    authorRole: "Owner",
     createdAt: 1793646000000,
     updatedAt: 1793646000000
   },
@@ -1230,7 +1230,7 @@ const DEFAULT_BLOG_POSTS = [
     authorSlug: "t",
     authorName: "Tyler Custine",
     authorHandle: "t@tysonmediagroup.org",
-    authorRole: "Founder, Lead Developer & Executive Director",
+    authorRole: "Owner",
     createdAt: 1793642400000,
     updatedAt: 1793642400000
   },
@@ -1243,7 +1243,7 @@ const DEFAULT_BLOG_POSTS = [
     authorSlug: "t",
     authorName: "Tyler Custine",
     authorHandle: "t@tysonmediagroup.org",
-    authorRole: "Founder, Lead Developer & Executive Director",
+    authorRole: "Owner",
     createdAt: 1792177200000,
     updatedAt: 1792177200000
   }
