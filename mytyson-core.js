@@ -1080,6 +1080,117 @@
         applyTheme(this.getAttribute('data-set-theme'));
       });
     }
+
+    initMobileCommandBar(openDrawer);
+  }
+
+  function syncMobileCommandBar() {
+    var authBtn = document.getElementById('cmdBarAuthBtn');
+    var profBtn = document.getElementById('cmdBarProfileBtn');
+    if (!authBtn || !profBtn) return;
+
+    var topAuth = document.getElementById('topAuthBtn');
+    var adminSignOut = document.getElementById('adminSignOutBtn');
+    var topProf = document.getElementById('topPublicProfileBtn');
+    var session = getSession();
+    var h = window.location.hostname;
+    var isLocal = (h === 'localhost' || h === '127.0.0.1');
+    var ssoBase = isLocal ? 'http://localhost:8097/auth.html' : 'https://auth.my.tysonmediagroup.org';
+    var orgBase = isLocal ? 'http://localhost:8096' : 'https://tysonmediagroup.org';
+
+    if (topAuth) {
+      var label = (topAuth.textContent || '').trim() || 'Sign In';
+      authBtn.textContent = label;
+      authBtn.href = topAuth.getAttribute('href') || ssoBase;
+      authBtn.onclick = function (e) {
+        if (typeof topAuth.onclick === 'function') {
+          e.preventDefault();
+          topAuth.click();
+        }
+      };
+    } else if (adminSignOut) {
+      authBtn.textContent = session && session.slug ? ('Sign Out (' + session.slug + ')') : 'Sign Out';
+      authBtn.href = '#';
+      authBtn.onclick = function (e) {
+        e.preventDefault();
+        adminSignOut.click();
+      };
+    } else if (session && session.slug) {
+      authBtn.textContent = 'Sign Out (' + session.slug + ')';
+      authBtn.href = '#';
+      authBtn.onclick = function (e) {
+        e.preventDefault();
+        clearSession();
+        window.location.href = ssoBase + '?redirect=' + encodeURIComponent(window.location.href.split('?')[0]);
+      };
+    } else {
+      authBtn.textContent = 'Sign In';
+      authBtn.href = ssoBase + '?redirect=' + encodeURIComponent(window.location.href.split('?')[0]);
+      authBtn.onclick = null;
+    }
+
+    if (topProf && topProf.getAttribute('href') && topProf.getAttribute('href') !== '#') {
+      profBtn.href = topProf.getAttribute('href');
+      profBtn.textContent = 'Public Profile';
+    } else if (session && session.slug) {
+      profBtn.href = orgBase + '/' + encodeURIComponent(session.slug);
+      profBtn.textContent = 'Public Profile';
+    } else {
+      var pageSlug = document.body ? document.body.getAttribute('data-profile-slug') : '';
+      if (pageSlug) {
+        profBtn.href = orgBase + '/' + encodeURIComponent(pageSlug);
+        profBtn.textContent = 'Public Profile';
+      } else {
+        profBtn.href = isLocal ? 'http://localhost:8097/' : 'https://my.tysonmediagroup.org/';
+        profBtn.textContent = 'Public Profile';
+      }
+    }
+  }
+
+  function initMobileCommandBar(openDrawerFn) {
+    if (!document.body) return;
+    var bar = document.getElementById('tysonMobileCommandBar');
+    if (!bar) {
+      bar = document.createElement('nav');
+      bar.className = 'tyson-command-bar';
+      bar.id = 'tysonMobileCommandBar';
+      bar.setAttribute('aria-label', 'Mobile Command Bar');
+      bar.innerHTML =
+        '<a href="https://auth.my.tysonmediagroup.org" class="btn btn-primary cmd-bar-btn" id="cmdBarAuthBtn">Sign In</a>' +
+        '<a href="https://tysonmediagroup.org" class="btn cmd-bar-btn" id="cmdBarProfileBtn" target="_blank" rel="noopener">Public Profile</a>' +
+        '<button type="button" class="settings-toggle-btn cmd-bar-gear-btn" id="cmdBarSettingsBtn" title="Theme &amp; Appearance Settings" aria-label="Settings">' +
+          '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<circle cx="12" cy="12" r="3"></circle>' +
+            '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>' +
+          '</svg>' +
+        '</button>';
+      document.body.appendChild(bar);
+    }
+
+    var cmdGear = document.getElementById('cmdBarSettingsBtn');
+    if (cmdGear) {
+      cmdGear.addEventListener('click', function () {
+        var drawer = document.getElementById('settings-drawer');
+        var topGear = document.getElementById('settings-toggle-btn');
+        if (drawer && typeof openDrawerFn === 'function') {
+          openDrawerFn();
+        } else if (topGear) {
+          topGear.click();
+        }
+      });
+    }
+
+    syncMobileCommandBar();
+
+    if (typeof MutationObserver !== 'undefined') {
+      var obs = new MutationObserver(function () {
+        syncMobileCommandBar();
+      });
+      var topAuth = document.getElementById('topAuthBtn');
+      var topProf = document.getElementById('topPublicProfileBtn');
+      if (topAuth) obs.observe(topAuth, { attributes: true, childList: true, characterData: true, subtree: true });
+      if (topProf) obs.observe(topProf, { attributes: true });
+    }
   }
 
   document.addEventListener('DOMContentLoaded', initThemeDrawer);

@@ -15,18 +15,13 @@
 </head>
 <body>
 
-  <!-- Global TYSON 3-Column Header (84px 50/50 Specular Split, Large Logo) -->
+  <!-- Global TYSON Header (84px 50/50 Specular Split, Official myTYSON Banner) -->
   <header class="main-header">
     <a href="/" class="topbar-brand">
-      <img src="/assets/TYSONMediaGroupBanner.png" alt="TYSON Media Group" class="logo-img">
+      <img src="/assets/MyTYSONBanner.png" alt="myTYSON" class="logo-img">
     </a>
 
-    <nav class="main-nav">
-      <a href="#preview" class="nav-link active">Profile</a>
-      <a href="#appearance" class="nav-link">Photos &amp; Cover</a>
-      <a href="#identity" class="nav-link">Identity</a>
-      <a href="#ecosystem" class="nav-link">Ecosystem</a>
-    </nav>
+    <div class="main-nav" aria-hidden="true"></div>
 
     <div class="topbar-actions">
       <a href="/auth.html?app=mytyson" id="topAuthBtn" class="btn btn-primary">Sign In</a>
@@ -52,7 +47,7 @@
   <section class="preview-shell" id="preview">
     <div class="preview-container">
       <div class="cover-preview" id="liveCoverPreview">
-        <img src="/assets/TYSONMediaGroupBanner.png" alt="TYSON Media Group" class="cover-watermark-logo">
+        <img src="/assets/MyTYSONBanner.png" alt="myTYSON" class="cover-watermark-logo">
         <div class="cover-actions-overlay">
           <button type="button" class="cover-overlay-btn" id="triggerCoverUploadBtn">Upload Cover Photo</button>
           <button type="button" class="cover-overlay-btn" id="resetCoverBtn">Reset Cover</button>
@@ -75,11 +70,11 @@
               <span class="status-badge badge-team" id="liveRoleBadge">TYSON Team</span>
             </div>
             <div class="identity-username brand-tmg-domain" id="liveUsername">flame@tysonmediagroup.org</div>
-            <div class="identity-url" id="liveProfileUrl"><span class="brand-tmg-domain">tysonmediagroup.org/flame</span> &bull; TYSON Team: Y</div>
+            <div class="identity-url" id="liveProfileUrl"><span class="brand-tmg-domain">tysonmediagroup.org/flame</span> &bull; TYSON Team</div>
           </div>
         </div>
 
-        <div class="topbar-actions">
+        <div class="topbar-actions identity-action-btns">
           <button type="button" class="btn btn-primary" id="saveAllTopBtn">Save Changes</button>
           <a href="#" class="btn" id="syncAndViewProfileBtn" target="_blank" rel="noopener">Open Public Profile &rarr;</a>
         </div>
@@ -281,7 +276,7 @@
   </main>
 
   <footer style="text-align: center; padding: 3rem 1.5rem; border-top: 1px solid var(--border-subtle);">
-    <img src="/assets/TYSONMediaGroupBanner.png" alt="TYSON Media Group" class="footer-logo">
+    <img src="/assets/MyTYSONBanner.png" alt="myTYSON" class="footer-logo">
     <div class="brand-tmg-domain" style="font-size: 1.5rem; color: var(--text-white);">my.tysonmediagroup.org</div>
     <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">Ad Astra Per Aspera &bull; Stillness in Motion &bull; Cloudflare Pages Architecture</div>
   </footer>
@@ -412,11 +407,17 @@
         var showReal = showRealNameToggle ? showRealNameToggle.checked : true;
         var displayHeader = showReal ? fullName : ('@' + activeAccount.slug);
 
+        var isStaff = core.isStaffMember ? core.isStaffMember(activeAccount) : (activeAccount.team === 'Y');
+        var formattedHandle = core.formatDisplayHandle
+          ? core.formatDisplayHandle(activeAccount)
+          : (isStaff ? (activeAccount.slug + '@tysonmediagroup.org') : ('@' + activeAccount.slug));
+        var teamStatusLabel = isStaff ? 'TYSON Team' : (activeAccount.role || 'Registered Member');
+
         liveDisplayName.textContent = displayHeader;
-        liveUsername.textContent = activeAccount.username;
-        liveProfileUrl.innerHTML = '<span class="brand-tmg-domain">tysonmediagroup.org/' + activeAccount.slug + '</span> &bull; TYSON Team: ' + activeAccount.team;
+        liveUsername.textContent = formattedHandle;
+        liveProfileUrl.innerHTML = '<span class="brand-tmg-domain">tysonmediagroup.org/' + activeAccount.slug + '</span> &bull; ' + teamStatusLabel;
         slugLabelInline.textContent = activeAccount.slug;
-        readonlyUsername.value = activeAccount.username;
+        readonlyUsername.value = isStaff ? (activeAccount.slug + '@tysonmediagroup.org') : activeAccount.slug;
         if (toggleHandlePreview) {
           toggleHandlePreview.textContent = '@' + activeAccount.slug;
         }
