@@ -34,3 +34,19 @@ CREATE TABLE IF NOT EXISTS mytyson_profiles (
   data_json TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS mytyson_blog_posts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT DEFAULT 'Engineering & Architecture',
+  summary TEXT DEFAULT '',
+  content TEXT NOT NULL,
+  author_slug TEXT NOT NULL,
+  author_name TEXT NOT NULL,
+  author_handle TEXT NOT NULL,
+  author_role TEXT DEFAULT 'TYSON Team',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_mytyson_blog_posts_created ON mytyson_blog_posts(created_at DESC);

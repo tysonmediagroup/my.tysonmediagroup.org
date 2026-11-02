@@ -284,6 +284,12 @@
           logo: '/assets/TYSONSoftwareBanner.png',
           fallbackUrl: 'https://tysonmediagroup.org/'
         },
+        docs: {
+          name: 'TYSON Documentation & Dispatches',
+          domain: 'docs.tysonmediagroup.org',
+          logo: '/assets/TYSONMediaGroupBanner.png',
+          fallbackUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8099/' : 'https://docs.tysonmediagroup.org/'
+        },
         rpm: {
           name: 'RPM World',
           domain: 'rpm.tysonmediagroup.org',
@@ -329,6 +335,9 @@
         }
         if (checkStr.indexOf('atlantis') !== -1 || checkStr.indexOf(':8095') !== -1) {
           return APP_BRANDING.atlantis;
+        }
+        if (checkStr.indexOf('docs.') !== -1 || appParam === 'docs' || checkStr.indexOf(':8099') !== -1) {
+          return APP_BRANDING.docs;
         }
         if (checkStr.indexOf('software') !== -1) {
           return APP_BRANDING.software;

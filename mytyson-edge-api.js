@@ -377,6 +377,22 @@ async function ensureD1Tables(env) {
       )
     `).run();
 
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS mytyson_blog_posts (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        category TEXT DEFAULT 'Engineering & Architecture',
+        summary TEXT DEFAULT '',
+        content TEXT NOT NULL,
+        author_slug TEXT NOT NULL,
+        author_name TEXT NOT NULL,
+        author_handle TEXT NOT NULL,
+        author_role TEXT DEFAULT 'TYSON Team',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `).run();
+
     D1_INITIALIZED = true;
   } catch (e) {
     // Fallback gracefully if D1 table creation fails
@@ -1129,5 +1145,223 @@ export async function handleApiRequest(request, env, ctxOrContext) {
     }
   }
 
+  // 6. GET / POST / DELETE /api/blog — TYSON Team Blog & Dispatches (Cloudflare D1 + Edge Cache)
+  if (url.pathname === "/api/blog") {
+    if (request.method === "GET" || request.method === "HEAD") {
+      const posts = await readAllBlogPostsInternal(env);
+      if (request.method === "HEAD") {
+        return new Response(null, { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+      }
+      return jsonResponse(posts);
+    }
+
+    if (request.method === "POST" || request.method === "PUT") {
+      try {
+        const body = await request.json();
+        const authorSlug = (body.authorSlug || "").toLowerCase().replace(/@tysonmediagroup\.org$/i, "").trim();
+        const accounts = await readAllAccountsInternal(env);
+        const authorAcc = findAccountInList(accounts, authorSlug);
+
+        if (!authorAcc || !isStaffAccount(authorAcc)) {
+          return jsonResponse({ ok: false, error: "Only verified TYSON Team members (@tysonmediagroup.org) may publish dispatches." }, 403);
+        }
+
+        const title = (body.title || "").trim();
+        const content = (body.content || "").trim();
+        if (!title || !content) {
+          return jsonResponse({ ok: false, error: "Title and content are required." }, 400);
+        }
+
+        const now = Date.now();
+        const post = {
+          id: (body.id || ("post-" + now + "-" + Math.random().toString(36).slice(2, 7))).trim(),
+          title,
+          category: (body.category || "Engineering & Architecture").trim(),
+          summary: (body.summary || content.slice(0, 180)).trim(),
+          content,
+          authorSlug: authorAcc.slug,
+          authorName: authorAcc.name || authorAcc.slug,
+          authorHandle: `${authorAcc.slug}@tysonmediagroup.org`,
+          authorRole: authorAcc.role || "TYSON Team",
+          createdAt: body.createdAt || now,
+          updatedAt: now
+        };
+
+        const saved = await saveBlogPostInternal(post, env, waitUntil);
+        return jsonResponse({ ok: true, post: saved });
+      } catch (err) {
+        return jsonResponse({ ok: false, error: "Invalid JSON payload." }, 400);
+      }
+    }
+
+    if (request.method === "DELETE") {
+      const id = (url.searchParams.get("id") || "").trim();
+      if (!id) {
+        return jsonResponse({ ok: false, error: "Missing blog post id." }, 400);
+      }
+      await deleteBlogPostInternal(id, env, waitUntil);
+      return jsonResponse({ ok: true });
+    }
+  }
+
   return null;
+}
+
+const DEFAULT_BLOG_POSTS = [
+  {
+    id: "dispatch-2026-11-02-d1-sso",
+    title: "Architecting Global Zero-Trust Identity on Cloudflare D1 & Edge Workers",
+    category: "Cloudflare & Edge Infrastructure",
+    summary: "How we unified myTYSON Single Sign-On, Google OAuth 2.0, and cross-domain profile state across tysonmediagroup.org using Cloudflare D1 SQLite at the edge.",
+    content: "With the November 2026 infrastructure milestone, every TYSON Media Group property — from tysonmediagroup.org and my.tysonmediagroup.org to auth.my.tysonmediagroup.org, power.administration.tysonmediagroup.org, and flame.atlantis.tysonmediagroup.org — now runs on a unified Cloudflare D1 edge database paired with WebCrypto HMAC-SHA256 session tokens.\n\nWhy Cloudflare D1? Traditional centralized databases introduce cold-start latency and regional bottlenecks. By pairing Cloudflare Pages Functions and Workers with D1 (backed by automatic Edge Cache fallback), profile updates, custom avatars, and account registrations propagate globally in milliseconds with zero origin servers to maintain.\n\nWe also introduced strict Staff vs. Community handle separation: only verified TYSON Team accounts receive @tysonmediagroup.org corporate handles, while community members receive clean @username slugs with instant Google OAuth 2.0 onboarding.",
+    authorSlug: "t",
+    authorName: "Tyler Custine",
+    authorHandle: "t@tysonmediagroup.org",
+    authorRole: "Founder & Executive Director",
+    createdAt: 1793646000000,
+    updatedAt: 1793646000000
+  },
+  {
+    id: "dispatch-2026-11-02-mobile-command-bar",
+    title: "Designing the Mobile Command Bar & Black Frutiger Aero Design System",
+    category: "Design Systems & UI",
+    summary: "Introducing the mobile-only bottom Command Bar, banner-only top headers, and the 5-theme Specular Glass Engine across the tysonmediagroup.org framework.",
+    content: "Mobile navigation on content-heavy media and identity platforms often suffers from cramped top headers. Today we rolled out a dedicated mobile interface across the tysonmediagroup.org framework.\n\nOn viewports 768px and below, the top navigation bar distills down to the property's official Banner Logo (MyTYSONBanner, TYSONMediaGroupBanner, or TYSONPowerAdminBanner), while interactive controls move to the bottom Mobile Command Bar: one-tap Sign In / Sign Out, Public Profile navigation, and the Theme & Appearance Gear button.\n\nEvery surface adheres to our Black Frutiger Aero (noir-aero) 50/50 specular glass split, with instant live switching across Noir Midnight, Frutiger Aero Aqua, Nintendo Wii System Channels, and Nature Botanical themes.",
+    authorSlug: "flame",
+    authorName: "Stephen French",
+    authorHandle: "flame@tysonmediagroup.org",
+    authorRole: "Director • TYSON Atlantis & T5S",
+    createdAt: 1793642400000,
+    updatedAt: 1793642400000
+  },
+  {
+    id: "dispatch-2026-10-16-project-t6",
+    title: "PROJECT T6 & The Evolution of Stillness in Motion",
+    category: "Broadcast & Engineering",
+    summary: "Behind the Cormorant Garamond SVG vector trace engine, t6graph SONAR telemetry, and 79+ official automotive film releases.",
+    content: "Stillness in Motion is more than a tagline — it is the engineering standard behind every frame we shoot and every web application we ship. With the rollout of PROJECT T6 across tysonmediagroup.org, rpm.tysonmediagroup.org, and t6graph.tysonmediagroup.org, we unified our stroke-by-stroke Cormorant Garamond italic vector trace intro with real-time telemetry and zero-dependency performance.",
+    authorSlug: "a",
+    authorName: "Ash French",
+    authorHandle: "a@tysonmediagroup.org",
+    authorRole: "TYSON Team • 3D & Interactive Systems",
+    createdAt: 1792177200000,
+    updatedAt: 1792177200000
+  }
+];
+
+const MEMORY_BLOG_POSTS = new Map();
+
+function blogCacheKey() {
+  return new Request("https://my.tysonmediagroup.org/_internal_edge_blog_v1", { method: "GET" });
+}
+
+export async function readAllBlogPostsInternal(env) {
+  const map = new Map();
+  for (const seed of DEFAULT_BLOG_POSTS) {
+    map.set(seed.id, Object.assign({}, seed));
+  }
+  for (const [k, v] of MEMORY_BLOG_POSTS.entries()) {
+    map.set(k, Object.assign({}, v));
+  }
+
+  const db = getD1(env);
+  if (db) {
+    await ensureD1Tables(env);
+    try {
+      const { results } = await db.prepare("SELECT * FROM mytyson_blog_posts ORDER BY created_at DESC").all();
+      if (Array.isArray(results)) {
+        for (const row of results) {
+          map.set(row.id, {
+            id: row.id,
+            title: row.title,
+            category: row.category || "Engineering & Architecture",
+            summary: row.summary || "",
+            content: row.content,
+            authorSlug: row.author_slug,
+            authorName: row.author_name,
+            authorHandle: row.author_handle,
+            authorRole: row.author_role || "TYSON Team",
+            createdAt: Number(row.created_at) || Date.now(),
+            updatedAt: Number(row.updated_at) || Date.now()
+          });
+        }
+      }
+    } catch (e) {}
+  }
+
+  try {
+    const cache = caches.default;
+    const cachedResp = await cache.match(blogCacheKey());
+    if (cachedResp) {
+      const list = await cachedResp.json();
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          if (item && item.id && !map.has(item.id)) {
+            map.set(item.id, item);
+          }
+        }
+      }
+    }
+  } catch (e) {}
+
+  return Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
+export async function saveBlogPostInternal(post, env, waitUntil) {
+  MEMORY_BLOG_POSTS.set(post.id, post);
+
+  const db = getD1(env);
+  if (db) {
+    await ensureD1Tables(env);
+    try {
+      await db.prepare(`
+        INSERT INTO mytyson_blog_posts (
+          id, title, category, summary, content,
+          author_slug, author_name, author_handle, author_role,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title,
+          category = excluded.category,
+          summary = excluded.summary,
+          content = excluded.content,
+          updated_at = excluded.updated_at
+      `).bind(
+        post.id,
+        post.title,
+        post.category,
+        post.summary,
+        post.content,
+        post.authorSlug,
+        post.authorName,
+        post.authorHandle,
+        post.authorRole,
+        post.createdAt,
+        post.updatedAt
+      ).run();
+    } catch (e) {}
+  }
+
+  const all = await readAllBlogPostsInternal(env);
+  try {
+    const cache = caches.default;
+    const putPromise = cache.put(blogCacheKey(), new Response(JSON.stringify(all), {
+      headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=31536000" }
+    }));
+    if (waitUntil) waitUntil(putPromise);
+    else await putPromise;
+  } catch (e) {}
+
+  return post;
+}
+
+export async function deleteBlogPostInternal(id, env, waitUntil) {
+  MEMORY_BLOG_POSTS.delete(id);
+  const db = getD1(env);
+  if (db) {
+    await ensureD1Tables(env);
+    try {
+      await db.prepare("DELETE FROM mytyson_blog_posts WHERE id = ?").bind(id).run();
+    } catch (e) {}
+  }
 }
