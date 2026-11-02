@@ -6,6 +6,7 @@
   <title>myTYSON Single Sign-On | auth.my.tysonmediagroup.org</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body class="auth-page-body">
 
@@ -61,18 +62,37 @@
       </div>
 
       <!-- Tab Switcher: Sign In vs Create Account -->
-      <div class="auth-nav-tabs">
+      <div class="auth-nav-tabs" id="authNavTabs">
         <button type="button" class="auth-nav-tab active" id="tabSignInBtn">Sign In</button>
         <button type="button" class="auth-nav-tab" id="tabRegisterBtn">Create Account</button>
       </div>
 
       <div class="auth-error" id="authErrorBox">Invalid myTYSON username or password.</div>
 
+      <!-- Google SSO Section for Sign In and Register -->
+      <div id="googleSsoSection" style="margin-bottom: 20px;">
+        <div id="googleSsoButtonWrap" style="display: flex; justify-content: center; min-height: 44px; margin-bottom: 8px;"></div>
+        <button type="button" class="btn" id="googleSsoFallbackBtn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 11px 16px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-subtle); color: var(--text-white); font-weight: 500; font-size: 0.98rem; cursor: pointer;">
+          <svg width="18" height="18" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span id="googleSsoBtnLabel">Continue with Google</span>
+        </button>
+        <div style="display: flex; align-items: center; margin: 18px 0 14px; gap: 12px;">
+          <div style="flex: 1; height: 1px; background: var(--border-subtle);"></div>
+          <span style="font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600;">or</span>
+          <div style="flex: 1; height: 1px; background: var(--border-subtle);"></div>
+        </div>
+      </div>
+
       <!-- Sign In Form -->
       <form id="ssoLoginForm" autocomplete="off">
         <div class="form-group">
           <label class="form-label" for="ssoUsername">Username</label>
-          <input type="text" id="ssoUsername" class="form-input" placeholder="username@tysonmediagroup.org" required autofocus>
+          <input type="text" id="ssoUsername" class="form-input" placeholder="Username or handle" required autofocus>
         </div>
 
         <div class="form-group">
@@ -102,7 +122,7 @@
           <label class="form-label" for="regUsername">Choose myTYSON Username</label>
           <input type="text" id="regUsername" class="form-input" placeholder="e.g. alexander" minlength="3" maxlength="30" required pattern="^[a-zA-Z0-9._-]+$">
           <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;" id="regUsernameHelp">
-            Must be at least 3 characters. Address: <span class="brand-tmg-domain" id="regHandlePreview">username@tysonmediagroup.org</span>
+            Must be at least 3 characters. <span id="regHandlePreview">Public Profile: tysonmediagroup.org/username (@username)</span>
           </div>
         </div>
 
@@ -136,6 +156,60 @@
         <button type="submit" class="btn btn-primary" style="width: 100%; padding: 13px 18px; font-size: 1.25rem; margin-top: 6px;" id="createAccountSubmitBtn">
           Create Account &rarr;
         </button>
+      </form>
+
+      <!-- Google SSO Onboarding: Choose myTYSON Username Form -->
+      <form id="googleHandlePickerForm" autocomplete="off" style="display: none;">
+        <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 14px; margin-bottom: 18px; display: flex; align-items: center; gap: 14px;">
+          <img id="googleUserAvatar" src="" alt="Google Profile" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--border-subtle); display: none;">
+          <div id="googleUserAvatarFallback" style="width: 48px; height: 48px; border-radius: 50%; background: #27272a; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 1.1rem;">G</div>
+          <div style="overflow: hidden;">
+            <div id="googleUserName" style="font-size: 1.05rem; font-weight: 600; color: var(--text-white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Google User</div>
+            <div id="googleUserEmail" style="font-size: 0.82rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">user@gmail.com</div>
+          </div>
+        </div>
+
+        <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.45;">
+          Welcome! Complete your myTYSON identity to finish signing in with Google.
+        </p>
+
+        <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="googleFirstName">First Name</label>
+            <input type="text" id="googleFirstName" class="form-input" placeholder="First Name">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="googleLastName">Last Name</label>
+            <input type="text" id="googleLastName" class="form-input" placeholder="Last Name">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="googleChosenSlug">Choose Your myTYSON Username</label>
+          <input type="text" id="googleChosenSlug" class="form-input" placeholder="e.g. alexander" minlength="3" maxlength="30" required pattern="^[a-zA-Z0-9._-]+$">
+          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;" id="googleSlugHelp">
+            Must be at least 3 characters. <span id="googleHandlePreview">Public Profile: tysonmediagroup.org/username (@username)</span>
+          </div>
+        </div>
+
+        <!-- Real Name Visibility Toggle in Google Onboarding -->
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 10px 14px; margin-bottom: 18px;">
+          <div>
+            <div style="font-size: 0.92rem; font-weight: 600; color: var(--text-white);">Show Real Name Publicly</div>
+            <div style="font-size: 0.78rem; color: var(--text-muted);">Displays real name on your public profile</div>
+          </div>
+          <label class="switch-toggle">
+            <input type="checkbox" id="googleShowRealName" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <button type="button" class="btn" id="googleCancelOnboardingBtn" style="padding: 12px 16px;">&larr; Cancel</button>
+          <button type="submit" class="btn btn-primary" style="flex: 1; padding: 12px 18px; font-size: 1.15rem;" id="googleSubmitOnboardingBtn">
+            Complete Registration &rarr;
+          </button>
+        </div>
       </form>
     </div>
   </main>
@@ -332,6 +406,9 @@
 
       var form = document.getElementById('ssoLoginForm');
       var regForm = document.getElementById('ssoRegisterForm');
+      var googleOnboardingForm = document.getElementById('googleHandlePickerForm');
+      var authNavTabs = document.getElementById('authNavTabs');
+      var googleSsoSection = document.getElementById('googleSsoSection');
       var errBox = document.getElementById('authErrorBox');
       var tabSignIn = document.getElementById('tabSignInBtn');
       var tabRegister = document.getElementById('tabRegisterBtn');
@@ -339,12 +416,26 @@
       var regHandlePreview = document.getElementById('regHandlePreview');
       var regUsernameHelp = document.getElementById('regUsernameHelp');
 
+      var googleChosenSlug = document.getElementById('googleChosenSlug');
+      var googleHandlePreview = document.getElementById('googleHandlePreview');
+      var googleSlugHelp = document.getElementById('googleSlugHelp');
+      var googleFirstName = document.getElementById('googleFirstName');
+      var googleLastName = document.getElementById('googleLastName');
+      var googleShowRealName = document.getElementById('googleShowRealName');
+      var googleCancelOnboardingBtn = document.getElementById('googleCancelOnboardingBtn');
+
+      var currentOnboardingToken = null;
+
       if (core.syncAccountsFromCloud) {
         core.syncAccountsFromCloud();
       }
 
       function switchAuthTab(tab) {
         errBox.classList.remove('visible');
+        googleOnboardingForm.style.display = 'none';
+        authNavTabs.style.display = 'grid';
+        googleSsoSection.style.display = 'block';
+
         if (tab === 'register') {
           tabSignIn.classList.remove('active');
           tabRegister.classList.add('active');
@@ -365,19 +456,211 @@
       tabSignIn.addEventListener('click', function () { switchAuthTab('signin'); });
       tabRegister.addEventListener('click', function () { switchAuthTab('register'); });
 
-      regUsernameInput.addEventListener('input', function () {
-        var val = (regUsernameInput.value || '').trim().toLowerCase();
-        if (regHandlePreview) {
-          regHandlePreview.textContent = (val || 'username') + '@tysonmediagroup.org';
-        }
-        if (val.length > 0 && val.length < 3) {
-          regUsernameHelp.style.color = '#f87171';
-          regUsernameHelp.innerHTML = 'Username must be at least 3 characters. Handles under 3 chars are reserved for staff.';
+      function updateSlugPreview(val, previewEl, helpEl) {
+        var clean = (val || '').trim().toLowerCase().replace(/@tysonmediagroup\.org$/i, '');
+        if (clean.length > 0 && clean.length < 3) {
+          helpEl.style.color = '#f87171';
+          helpEl.textContent = 'Username must be at least 3 characters.';
         } else {
-          regUsernameHelp.style.color = 'var(--text-muted)';
-          regUsernameHelp.innerHTML = 'Address: <span class="brand-tmg-domain">' + (val || 'username') + '@tysonmediagroup.org</span>';
+          helpEl.style.color = 'var(--text-muted)';
+          var displaySlug = clean || 'username';
+          helpEl.innerHTML = 'Public Profile: <span class="brand-tmg-domain">tysonmediagroup.org/' + displaySlug + '</span> (@' + displaySlug + ')';
         }
+      }
+
+      regUsernameInput.addEventListener('input', function () {
+        updateSlugPreview(regUsernameInput.value, regHandlePreview, regUsernameHelp);
       });
+
+      googleChosenSlug.addEventListener('input', function () {
+        updateSlugPreview(googleChosenSlug.value, googleHandlePreview, googleSlugHelp);
+      });
+
+      function showGoogleOnboarding(data) {
+        errBox.classList.remove('visible');
+        form.style.display = 'none';
+        regForm.style.display = 'none';
+        authNavTabs.style.display = 'none';
+        googleSsoSection.style.display = 'none';
+        googleOnboardingForm.style.display = 'block';
+
+        mainHeading.textContent = 'Finish myTYSON Account';
+        currentOnboardingToken = data.onboardingToken;
+
+        var prof = data.googleProfile || {};
+        document.getElementById('googleUserName').textContent = prof.name || prof.email || 'Google User';
+        document.getElementById('googleUserEmail').textContent = prof.email || '';
+
+        var avatarImg = document.getElementById('googleUserAvatar');
+        var avatarFallback = document.getElementById('googleUserAvatarFallback');
+        if (prof.picture) {
+          avatarImg.src = prof.picture;
+          avatarImg.style.display = 'block';
+          avatarFallback.style.display = 'none';
+        } else {
+          avatarImg.style.display = 'none';
+          avatarFallback.style.display = 'flex';
+          avatarFallback.textContent = ((prof.name || 'G')[0] || 'G').toUpperCase();
+        }
+
+        googleFirstName.value = prof.firstName || '';
+        googleLastName.value = prof.lastName || '';
+        var initSlug = (prof.suggestedSlug || '').toLowerCase();
+        googleChosenSlug.value = initSlug;
+        updateSlugPreview(initSlug, googleHandlePreview, googleSlugHelp);
+        googleChosenSlug.focus();
+      }
+
+      googleCancelOnboardingBtn.addEventListener('click', function () {
+        currentOnboardingToken = null;
+        switchAuthTab('signin');
+      });
+
+      googleOnboardingForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        errBox.classList.remove('visible');
+
+        var chosenSlug = (googleChosenSlug.value || '').trim().toLowerCase().replace(/@tysonmediagroup\.org$/i, '');
+        if (chosenSlug.length < 3) {
+          errBox.textContent = 'Username must be at least 3 characters long.';
+          errBox.classList.add('visible');
+          googleChosenSlug.focus();
+          return;
+        }
+
+        var submitBtn = document.getElementById('googleSubmitOnboardingBtn');
+        var oldText = submitBtn ? submitBtn.textContent : '';
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Completing Setup...';
+        }
+
+        core.completeGoogleSignup({
+          onboardingToken: currentOnboardingToken,
+          slug: chosenSlug,
+          firstName: googleFirstName.value.trim(),
+          lastName: googleLastName.value.trim(),
+          showRealName: googleShowRealName.checked
+        }, function (res) {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = oldText;
+          }
+          if (!res || !res.ok) {
+            errBox.textContent = (res && res.error) ? res.error : 'Account creation failed.';
+            errBox.classList.add('visible');
+            return;
+          }
+          completeRedirectWithSession(res.session);
+        });
+      });
+
+      function handleGoogleCredentialResponse(response) {
+        if (!response || !response.credential) {
+          errBox.textContent = 'Google sign-in did not return a credential.';
+          errBox.classList.add('visible');
+          return;
+        }
+
+        errBox.classList.remove('visible');
+        core.authenticateWithGoogle(response.credential, function (res) {
+          if (!res || !res.ok) {
+            errBox.textContent = (res && res.error) ? res.error : 'Google authentication failed.';
+            errBox.classList.add('visible');
+            return;
+          }
+          if (res.status === 'AUTHENTICATED' && res.session) {
+            completeRedirectWithSession(res.session);
+            return;
+          }
+          if (res.status === 'NEEDS_HANDLE') {
+            showGoogleOnboarding(res);
+            return;
+          }
+        });
+      }
+
+      // Initialize Google Identity Services
+      function initGoogleSignIn(clientId) {
+        var activeClientId = clientId || core.GOOGLE_CLIENT_ID || window.MYTYSON_GOOGLE_CLIENT_ID;
+        var fallbackBtn = document.getElementById('googleSsoFallbackBtn');
+        var btnWrap = document.getElementById('googleSsoButtonWrap');
+
+        if (!activeClientId) {
+          // If no client id is set yet, clicking the fallback informs the user or opens GIS
+          if (fallbackBtn) {
+            fallbackBtn.addEventListener('click', function () {
+              errBox.textContent = 'Google OAuth Client ID is not configured yet. Please configure GOOGLE_CLIENT_ID in wrangler.jsonc or Cloudflare environment.';
+              errBox.classList.add('visible');
+            });
+          }
+          return;
+        }
+
+        function mountGsi() {
+          if (window.google && window.google.accounts && window.google.accounts.id) {
+            try {
+              window.google.accounts.id.initialize({
+                client_id: activeClientId,
+                callback: handleGoogleCredentialResponse,
+                auto_select: false,
+                cancel_on_tap_outside: true
+              });
+
+              if (btnWrap) {
+                btnWrap.innerHTML = '';
+                window.google.accounts.id.renderButton(btnWrap, {
+                  theme: 'filled_black',
+                  size: 'large',
+                  text: 'continue_with',
+                  shape: 'rectangular',
+                  width: 380,
+                  logo_alignment: 'left'
+                });
+                if (fallbackBtn) {
+                  fallbackBtn.style.display = 'none';
+                }
+              }
+            } catch (err) {
+              console.warn('GIS render error:', err);
+            }
+          }
+        }
+
+        if (window.google && window.google.accounts) {
+          mountGsi();
+        } else {
+          var checkCount = 0;
+          var gsiTimer = setInterval(function () {
+            checkCount++;
+            if (window.google && window.google.accounts) {
+              clearInterval(gsiTimer);
+              mountGsi();
+            } else if (checkCount > 30) {
+              clearInterval(gsiTimer);
+            }
+          }, 150);
+        }
+
+        if (fallbackBtn) {
+          fallbackBtn.addEventListener('click', function () {
+            if (window.google && window.google.accounts && window.google.accounts.id) {
+              window.google.accounts.id.prompt();
+            }
+          });
+        }
+      }
+
+      // Query Edge API for Google Client ID
+      fetch('/api/auth/google')
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          var cid = (res && res.clientId) || core.GOOGLE_CLIENT_ID;
+          initGoogleSignIn(cid);
+        })
+        .catch(function () {
+          initGoogleSignIn(core.GOOGLE_CLIENT_ID);
+        });
 
       form.addEventListener('submit', function (e) {
         e.preventDefault();

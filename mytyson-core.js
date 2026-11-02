@@ -6,13 +6,126 @@
   var CHUNK_COUNT = 8;
   var CHUNK_SIZE = 2800;
 
+  // Central Google OAuth Client ID for myTYSON SSO (can also be set via env.GOOGLE_CLIENT_ID on Cloudflare)
+  var GOOGLE_CLIENT_ID = window.MYTYSON_GOOGLE_CLIENT_ID || '1054168096128-2er1dlrrkeqphr2bu8vpsa4v1rd99reg.apps.googleusercontent.com';
+
+  // Pure-JS synchronous SHA-256 so client-side authenticate() never stores plaintext passwords in source code
+  function sha256Hex(ascii) {
+    function rightRotate(value, amount) {
+      return (value >>> amount) | (value << (32 - amount));
+    }
+    var mathPow = Math.pow;
+    var maxWord = mathPow(2, 32);
+    var lengthProperty = 'length';
+    var i, j;
+    var result = '';
+    var words = [];
+    var asciiBitLength = ascii[lengthProperty] * 8;
+    var hash = sha256Hex.h = sha256Hex.h || [];
+    var k = sha256Hex.k = sha256Hex.k || [];
+    var primeCounter = k[lengthProperty];
+    var isComposite = {};
+    for (var candidate = 2; primeCounter < 64; candidate++) {
+      if (!isComposite[candidate]) {
+        for (i = 0; i < 313; i += candidate) {
+          isComposite[i] = candidate;
+        }
+        hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+        k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+      }
+    }
+    ascii += '\x80';
+    while ((ascii[lengthProperty] % 64) - 56) ascii += '\x00';
+    for (i = 0; i < ascii[lengthProperty]; i++) {
+      j = ascii.charCodeAt(i);
+      if (j >> 8) return '';
+      words[i >> 2] |= j << ((3 - (i % 4)) * 8);
+    }
+    words[words[lengthProperty]] = (asciiBitLength / maxWord) | 0;
+    words[words[lengthProperty]] = asciiBitLength;
+    for (j = 0; j < words[lengthProperty]; ) {
+      var w = words.slice(j, (j += 16));
+      var oldHash = hash;
+      hash = hash.slice(0, 8);
+      for (i = 0; i < 64; i++) {
+        var i2 = i + j;
+        var w15 = w[i - 15], w2 = w[i - 2];
+        var a = hash[0], e = hash[4];
+        var temp1 =
+          hash[7] +
+          (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) +
+          ((e & hash[5]) ^ (~e & hash[6])) +
+          k[i] +
+          (w[i] =
+            i < 16
+              ? w[i]
+              : (w[i - 16] +
+                  (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) +
+                  w[i - 7] +
+                  (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) |
+                0);
+        var temp2 =
+          (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) +
+          ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+        hash = [(temp1 + temp2) | 0].concat(hash);
+        hash[4] = (hash[4] + temp1) | 0;
+      }
+      for (i = 0; i < 8; i++) {
+        hash[i] = (hash[i] + oldHash[i]) | 0;
+      }
+    }
+    for (i = 0; i < 8; i++) {
+      for (j = 3; j + 1; j--) {
+        var b = (hash[i] >> (j * 8)) & 255;
+        result += (b < 16 ? 0 : '') + b.toString(16);
+      }
+    }
+    return result;
+  }
+
+  function utf8ToAscii(str) {
+    return unescape(encodeURIComponent(str || ''));
+  }
+
+  function hashPasswordSync(password, slug) {
+    var cleanSlug = (slug || '').toLowerCase().replace(/@tysonmediagroup\.org$/i, '').trim();
+    var raw = 'mytyson_salt_v1:' + cleanSlug + ':' + (password || '').trim();
+    return sha256Hex(utf8ToAscii(raw));
+  }
+
+  function isStaffMember(accOrTeam) {
+    var t = typeof accOrTeam === 'object' && accOrTeam !== null ? accOrTeam.team : accOrTeam;
+    return t === 'Y' || t === true || t === 'Official TYSON Account' || t === 'Official Support Account';
+  }
+
+  // Only TYSON Staff (team === 'Y') receive @tysonmediagroup.org handles; standard users use their clean slug
+  function formatAccountUsername(slug, isStaff) {
+    var clean = (slug || '').toLowerCase().replace(/@tysonmediagroup\.org$/i, '').trim();
+    if (!clean) return '';
+    return isStaff ? (clean + '@tysonmediagroup.org') : clean;
+  }
+
+  function formatDisplayHandle(accOrSlug) {
+    if (!accOrSlug) return '';
+    if (typeof accOrSlug === 'string') {
+      var found = findAccount(accOrSlug);
+      if (found) accOrSlug = found;
+      else return accOrSlug.indexOf('@') !== -1 ? accOrSlug : ('@' + accOrSlug);
+    }
+    var clean = (accOrSlug.slug || accOrSlug.username || '').toLowerCase().replace(/@tysonmediagroup\.org$/i, '').trim();
+    if (isStaffMember(accOrSlug)) {
+      return clean + '@tysonmediagroup.org';
+    }
+    return '@' + clean;
+  }
+
   var DEFAULT_ACCOUNTS = [
     {
       name: 'Stephen French',
       username: 'flame@tysonmediagroup.org',
       slug: 'flame',
       aliases: ['flame@tysonmediagroup.org', 'flame'],
-      password: 'hug',
+      passwordHashes: ['b5721c15816b6a87b238a2565d38772814857d050a262d0186680214b3c773c5'],
       team: 'Y',
       badge: 'TYSON Team',
       badgeClass: 'badge-team',
@@ -30,7 +143,7 @@
       username: 't@tysonmediagroup.org',
       slug: 't',
       aliases: ['t@tysonmediagroup.org', 't', 'ty', 'ty@tysonmediagroup.org'],
-      password: 'hug',
+      passwordHashes: ['3745b1327b96c9c6ede767ee79e2b8907c3fdba31fb6c8fb6bb8e76cb0525f92'],
       team: 'Y',
       badge: 'TYSON Team',
       badgeClass: 'badge-team',
@@ -41,7 +154,8 @@
       defaultCoverUrl: '/assets/atlantis-sunset.jpg',
       role: 'Founder & Executive Lead',
       division: 'TYSON Media Group / Core Systems',
-      bio: 'Official myTYSON profile for Tyler Custine.'
+      bio: 'Official myTYSON profile for Tyler Custine.',
+      isPowerAdmin: true
     },
     {
       name: 'TYSON Media Group',
@@ -49,8 +163,8 @@
       loginId: 'tyson',
       slug: 'tyson',
       aliases: ['tyson', 'tyson@tysonmediagroup.org'],
-      password: '102280919TYSONMediaGroup1234',
-      team: 'Official TYSON Account',
+      passwordHashes: ['b6cbc904b5abaf19a634bd6acc4ed9093f8034366a04f8356c0f60ff3cbd966d'],
+      team: 'Y',
       badge: 'Official TYSON Account',
       badgeClass: 'badge-official',
       hasTysonBadge: true,
@@ -60,14 +174,15 @@
       defaultCoverUrl: '/assets/tyson-t5s-login-backdrop.jpg',
       role: 'Primary Organization Account',
       division: 'TYSON Media Group',
-      bio: 'Official organization profile for TYSON Media Group.'
+      bio: 'Official organization profile for TYSON Media Group.',
+      isPowerAdmin: true
     },
     {
       name: 'Ash French',
       username: 'a@tysonmediagroup.org',
       slug: 'a',
       aliases: ['a@tysonmediagroup.org', 'a', 'ash', 'ash@tysonmediagroup.org', 'ashfrench'],
-      password: 'AshFrench',
+      passwordHashes: ['7f33322277113c6591fa920fa06c0f5a3c4e4a33715aa0c9fd24c6251f591d19'],
       team: 'Y',
       badge: 'TYSON Team',
       badgeClass: 'badge-team',
@@ -78,15 +193,18 @@
       defaultCoverUrl: '/assets/photograph.jpg',
       role: 'TYSON Team Member',
       division: 'TYSON Media Group',
-      bio: 'Official myTYSON profile for Ash French.'
+      bio: 'Official myTYSON profile for Ash French.',
+      isPowerAdmin: true
     },
     {
       name: 'Triston Rinebarger',
       username: 'rpm@tysonmediagroup.org',
       slug: 'rpm',
       aliases: ['rpm@tysonmediagroup.org', 'rpm'],
-      password: 'TristonRinerbarger',
-      altPasswords: ['TristonRinebarger'],
+      passwordHashes: [
+        'c3490c62ef1680ccd128e0d57655b85fbb33683ee91f5f4dc3d5ef6a9bb78c17',
+        '4f54664f678ba0d7b2069f8853b1998e5c23789fd5d34102f65872935a65cdb3'
+      ],
       team: 'Y',
       badge: 'TYSON Team',
       badgeClass: 'badge-team',
@@ -104,8 +222,8 @@
       username: 'contact@tysonmediagroup.org',
       slug: 'contact',
       aliases: ['contact@tysonmediagroup.org', 'contact'],
-      password: 'TYSONSupport',
-      team: 'Official Support Account',
+      passwordHashes: ['5b9b9f6cc4a8e3a8168525e5d875cbeeb66be6a21ac823e459257058887a217c'],
+      team: 'Y',
       badge: 'Official Support Account',
       badgeClass: 'badge-support',
       hasTysonBadge: true,
@@ -122,16 +240,16 @@
       username: 'j.gantt',
       slug: 'j.gantt',
       aliases: ['j.gantt'],
-      password: 'JakeGantt',
+      passwordHashes: ['a4428c9f3b6e73d8f9c2244c510cb1c88ec314bcbbecacf2580d538791cfa0b7'],
       team: 'N',
-      badge: 'Standard Account',
+      badge: 'Standard Member',
       badgeClass: 'badge-member',
       hasTysonBadge: false,
       initials: 'JG',
       avatarBg: 'linear-gradient(135deg, #27272a 0%, #09090b 100%)',
       coverBg: 'linear-gradient(125deg, #18181b 0%, #09090b 65%, #050505 100%)',
       defaultCoverUrl: '',
-      role: 'Registered User',
+      role: 'Registered Member',
       division: 'Independent / External',
       bio: 'Registered myTYSON account for Jake Gantt.'
     },
@@ -143,7 +261,7 @@
       username: 'eythn@tysonmediagroup.org',
       slug: 'eythn',
       aliases: ['eythn@tysonmediagroup.org', 'eythn'],
-      password: 'ej121',
+      passwordHashes: ['020eb6fb068b8c6400bb2a26428cc67157e7f32c5d985cad45513a5ab984d175'],
       team: 'Y',
       badge: 'TYSON Team',
       badgeClass: 'badge-team',
@@ -161,10 +279,10 @@
       firstName: 'Jason',
       lastName: 'May',
       showRealName: true,
-      username: 'jmay@tysonmediagroup.org',
+      username: 'jmay',
       slug: 'jmay',
-      aliases: ['jmay@tysonmediagroup.org', 'jmay'],
-      password: '102280919',
+      aliases: ['jmay', 'jmay@tysonmediagroup.org'],
+      passwordHashes: ['93ac3fb9fab415b2a9e437e0816115b579efebe39259bf86118558538fb52fda'],
       team: 'N',
       badge: 'Standard Member',
       badgeClass: 'badge-member',
@@ -174,7 +292,7 @@
       coverBg: 'linear-gradient(125deg, #18181b 0%, #09090b 65%, #050505 100%)',
       defaultCoverUrl: '',
       role: 'Registered Member',
-      division: 'TYSON Media Group',
+      division: 'Community Member',
       bio: 'myTYSON profile for Jason May.'
     }
   ];
@@ -200,9 +318,11 @@
     return match ? decodeURIComponent(match[1]) : null;
   }
 
-  // Write chunked cookies across .tysonmediagroup.org so base64 PFPs survive cookie limits
   function writeChunkedCookie(slug, rawJson) {
     if (!slug) return;
+    var host = window.location.hostname;
+    // Skip chunked cookies on localhost to prevent HTTP 431 Request Header Fields Too Large on local dev servers
+    if (host === 'localhost' || host === '127.0.0.1') return;
     for (var c = 0; c < 12; c++) {
       if (c < CHUNK_COUNT && rawJson) {
         var part = rawJson.slice(c * CHUNK_SIZE, (c + 1) * CHUNK_SIZE);
@@ -240,6 +360,12 @@
     return 'https://my.tysonmediagroup.org';
   }
 
+  function getAuthHeader() {
+    var s = getSession();
+    if (!s) return {};
+    return { Authorization: 'Bearer ' + encodeSsoToken(s) };
+  }
+
   function getCustomAccounts() {
     try {
       var raw = localStorage.getItem(CUSTOM_ACCOUNTS_KEY);
@@ -255,18 +381,29 @@
     } catch (e) {}
   }
 
+  function normalizeAccountObject(acc) {
+    if (!acc) return acc;
+    var copy = Object.assign({}, acc);
+    var cleanSlug = (copy.slug || copy.username || '').toLowerCase().replace(/@tysonmediagroup\.org$/i, '').trim();
+    var isStaff = isStaffMember(copy);
+    copy.slug = cleanSlug;
+    copy.team = isStaff ? 'Y' : 'N';
+    copy.username = formatAccountUsername(cleanSlug, isStaff);
+    return copy;
+  }
+
   function getAllAccounts() {
     var custom = getCustomAccounts();
     var map = {};
     for (var i = 0; i < DEFAULT_ACCOUNTS.length; i++) {
       var d = DEFAULT_ACCOUNTS[i];
-      map[d.slug.toLowerCase()] = Object.assign({}, d);
+      map[d.slug.toLowerCase()] = normalizeAccountObject(d);
     }
     for (var j = 0; j < custom.length; j++) {
       var c = custom[j];
       if (c && c.slug) {
         var k = c.slug.toLowerCase();
-        map[k] = Object.assign({}, map[k] || {}, c);
+        map[k] = normalizeAccountObject(Object.assign({}, map[k] || {}, c));
       }
     }
     return Object.values(map);
@@ -275,10 +412,11 @@
   function findAccount(identifier) {
     if (!identifier) return null;
     var clean = identifier.trim().toLowerCase();
+    var stripped = clean.replace(/@tysonmediagroup\.org$/i, '');
     var all = getAllAccounts();
     for (var i = 0; i < all.length; i++) {
       var acc = all[i];
-      if (acc.slug && acc.slug.toLowerCase() === clean) return acc;
+      if (acc.slug && acc.slug.toLowerCase() === stripped) return acc;
       if (acc.username && acc.username.toLowerCase() === clean) return acc;
       if (acc.aliases && acc.aliases.some(function (a) { return (a || '').toLowerCase() === clean; })) return acc;
     }
@@ -296,8 +434,6 @@
     var rawSlug = (data.slug || data.username || '').trim().toLowerCase();
     var cleanSlug = rawSlug.replace(/@tysonmediagroup\.org$/i, '').trim();
 
-    // Basic user accounts must NOT have usernames under 3 characters!
-    // Poweradmin accounts (isPowerAdmin=true) are exempt from this limit.
     if (!data.isPowerAdmin) {
       if (cleanSlug.length < 3) {
         var errRes = { ok: false, error: 'Username must be at least 3 characters long.' };
@@ -312,7 +448,7 @@
     }
 
     if (findAccount(cleanSlug)) {
-      var errExists = { ok: false, error: 'Account with handle "' + cleanSlug + '" already exists.' };
+      var errExists = { ok: false, error: 'Account with username "' + cleanSlug + '" already exists.' };
       if (typeof callback === 'function') callback(errExists);
       return errExists;
     }
@@ -320,19 +456,23 @@
     var firstName = (data.firstName || '').trim();
     var lastName = (data.lastName || '').trim();
     var dName = (data.name || [firstName, lastName].filter(Boolean).join(' ') || cleanSlug).trim();
-
     var initials = ((firstName[0] || '') + (lastName[0] || (cleanSlug[0] || ''))).toUpperCase() || 'TM';
     var isTeam = (data.team === 'Y' || data.team === true || data.isTeam === true);
+    var plainPassword = data.password || 'password123';
+    var pwHash = hashPasswordSync(plainPassword, cleanSlug);
+
+    // Only TYSON Staff get @tysonmediagroup.org; non-staff get clean slug
+    var formattedUsername = formatAccountUsername(cleanSlug, isTeam);
 
     var newAcc = {
       name: dName,
       firstName: firstName,
       lastName: lastName,
       showRealName: data.showRealName !== false,
-      username: cleanSlug + '@tysonmediagroup.org',
+      username: formattedUsername,
       slug: cleanSlug,
-      aliases: [cleanSlug + '@tysonmediagroup.org', cleanSlug],
-      password: data.password || 'password123',
+      aliases: isTeam ? [cleanSlug + '@tysonmediagroup.org', cleanSlug] : [cleanSlug],
+      passwordHashes: [pwHash],
       team: isTeam ? 'Y' : 'N',
       badge: data.badge || (isTeam ? 'TYSON Team' : 'Standard Member'),
       badgeClass: data.badgeClass || (isTeam ? 'badge-team' : 'badge-member'),
@@ -342,7 +482,7 @@
       coverBg: data.coverBg || 'linear-gradient(125deg, #18181b 0%, #09090b 65%, #050505 100%)',
       defaultCoverUrl: data.defaultCoverUrl || '',
       role: data.role || (isTeam ? 'TYSON Team Member' : 'Registered Member'),
-      division: data.division || 'TYSON Media Group',
+      division: data.division || (isTeam ? 'TYSON Media Group' : 'Community Member'),
       bio: data.bio || ('myTYSON profile for ' + dName + '.'),
       pfpUrl: data.pfpUrl || '',
       isDynamic: true,
@@ -354,7 +494,6 @@
     custom.push(newAcc);
     saveCustomAccounts(custom);
 
-    // Save profile defaults
     saveCustomProfile(cleanSlug, {
       displayName: dName,
       firstName: firstName,
@@ -366,12 +505,12 @@
       coverUrl: ''
     });
 
-    // Cloud sync to /api/accounts
     var apiBase = getCloudApiBase();
+    var payloadToSend = Object.assign({}, newAcc, { password: plainPassword });
     fetch(apiBase + '/api/accounts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newAcc)
+      headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+      body: JSON.stringify(payloadToSend)
     })
       .then(function (r) {
         if (!r.ok) {
@@ -381,8 +520,9 @@
         }
         return r.json();
       })
-      .then(function () {
-        var res = { ok: true, account: newAcc };
+      .then(function (serverRes) {
+        var accOut = (serverRes && serverRes.account) ? normalizeAccountObject(serverRes.account) : newAcc;
+        var res = { ok: true, account: accOut };
         if (typeof callback === 'function') callback(res);
       })
       .catch(function (e) {
@@ -395,18 +535,26 @@
 
   function updateAccount(slug, updates, callback) {
     if (!slug) return;
-    var clean = slug.toLowerCase();
+    var clean = slug.toLowerCase().replace(/@tysonmediagroup\.org$/i, '').trim();
     var custom = getCustomAccounts();
     var idx = custom.findIndex(function (a) { return a.slug.toLowerCase() === clean; });
     var target = null;
+
+    var processedUpdates = Object.assign({}, updates);
+    if (processedUpdates.password) {
+      processedUpdates.passwordHashes = [hashPasswordSync(processedUpdates.password, clean)];
+    }
+
     if (idx >= 0) {
-      custom[idx] = Object.assign({}, custom[idx], updates);
+      custom[idx] = normalizeAccountObject(Object.assign({}, custom[idx], processedUpdates));
+      delete custom[idx].password;
       target = custom[idx];
       saveCustomAccounts(custom);
     } else {
       var d = DEFAULT_ACCOUNTS.find(function (a) { return a.slug.toLowerCase() === clean; });
       if (d) {
-        target = Object.assign({}, d, updates, { isDynamic: true });
+        target = normalizeAccountObject(Object.assign({}, d, processedUpdates, { isDynamic: true }));
+        delete target.password;
         custom.push(target);
         saveCustomAccounts(custom);
       }
@@ -416,8 +564,8 @@
       var apiBase = getCloudApiBase();
       fetch(apiBase + '/api/accounts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(target)
+        headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+        body: JSON.stringify(Object.assign({}, target, updates.password ? { password: updates.password } : {}))
       }).catch(function () {});
     }
 
@@ -428,8 +576,8 @@
 
   function deleteAccount(slug, callback) {
     if (!slug) return;
-    var clean = slug.toLowerCase();
-    if (clean === 'tyson' || clean === 't') {
+    var clean = slug.toLowerCase().replace(/@tysonmediagroup\.org$/i, '').trim();
+    if (clean === 'tyson' || clean === 't' || clean === 'ash' || clean === 'a') {
       var errRes = { ok: false, error: 'Cannot delete primary root admin account.' };
       if (typeof callback === 'function') callback(errRes);
       return errRes;
@@ -441,7 +589,8 @@
 
     var apiBase = getCloudApiBase();
     fetch(apiBase + '/api/accounts?slug=' + encodeURIComponent(clean), {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeader()
     }).catch(function () {});
 
     resetCustomProfile(clean);
@@ -468,7 +617,14 @@
           for (var j = 0; j < cloudAccounts.length; j++) {
             var ca = cloudAccounts[j];
             if (ca && ca.slug) {
-              map[ca.slug.toLowerCase()] = Object.assign({}, map[ca.slug.toLowerCase()] || {}, ca);
+              var k = ca.slug.toLowerCase();
+              var prev = map[k] || {};
+              // Preserve local passwordHashes if server sanitized them
+              var merged = normalizeAccountObject(Object.assign({}, prev, ca));
+              if (!merged.passwordHashes && prev.passwordHashes) {
+                merged.passwordHashes = prev.passwordHashes;
+              }
+              map[k] = merged;
             }
           }
           saveCustomAccounts(Object.values(map));
@@ -480,31 +636,242 @@
       });
   }
 
-  function authenticate(identifier, password) {
+  function authenticate(identifier, password, asyncCallback) {
     var acc = findAccount(identifier);
-    if (!acc) return null;
     var pass = (password || '').trim();
-    var valid = (acc.password === pass) || (acc.altPasswords && acc.altPasswords.indexOf(pass) !== -1);
-    if (!valid) return null;
-    return createSessionForAccount(acc);
+
+    if (acc && pass) {
+      var candidateHash = hashPasswordSync(pass, acc.slug);
+      var validHash = Array.isArray(acc.passwordHashes) && acc.passwordHashes.indexOf(candidateHash) !== -1;
+      var validLegacy = (acc.password && acc.password === pass) || (acc.altPasswords && acc.altPasswords.indexOf(pass) !== -1);
+      if (validHash || validLegacy) {
+        var localSession = createSessionForAccount(acc);
+        if (typeof asyncCallback === 'function') asyncCallback(localSession);
+        return localSession;
+      }
+    }
+
+    // If an asyncCallback is provided, also verify against the Cloudflare D1 / Edge Auth endpoint
+    if (typeof asyncCallback === 'function') {
+      var apiBase = getCloudApiBase();
+      fetch(apiBase + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: identifier, password: pass })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.ok && res.session) {
+            if (res.account) {
+              var custom = getCustomAccounts();
+              var idx = custom.findIndex(function (a) { return a.slug.toLowerCase() === res.account.slug.toLowerCase(); });
+              if (idx >= 0) custom[idx] = Object.assign({}, custom[idx], res.account);
+              else custom.push(res.account);
+              saveCustomAccounts(custom);
+            }
+            var savedSess = saveSessionObject(res.session);
+            asyncCallback(savedSess);
+          } else {
+            asyncCallback(null, (res && res.error) || 'Invalid myTYSON username or password.');
+          }
+        })
+        .catch(function () {
+          asyncCallback(null, 'Invalid myTYSON username or password.');
+        });
+    }
+
+    return null;
   }
 
-  function createSessionForAccount(acc) {
-    var session = {
-      name: acc.name,
-      username: acc.username,
-      slug: acc.slug,
-      team: acc.team,
-      badge: acc.badge,
-      hasTysonBadge: acc.hasTysonBadge,
-      ts: Date.now()
-    };
-    var raw = JSON.stringify(session);
+  function saveSessionObject(session) {
+    if (!session) return null;
+    var isStaff = isStaffMember(session);
+    var cleanSlug = (session.slug || session.username || '').toLowerCase().replace(/@tysonmediagroup\.org$/i, '').trim();
+    var normalized = Object.assign({}, session, {
+      slug: cleanSlug,
+      username: formatAccountUsername(cleanSlug, isStaff),
+      team: isStaff ? 'Y' : 'N'
+    });
+    var raw = JSON.stringify(normalized);
     try {
       localStorage.setItem(STORAGE_KEY, raw);
     } catch (e) {}
     setSharedCookie('mytyson_sso', raw, 30);
-    return session;
+    return normalized;
+  }
+
+  function createSessionForAccount(acc, extraSessionProps) {
+    var isStaff = isStaffMember(acc);
+    var cleanSlug = (acc.slug || acc.username || '').toLowerCase().replace(/@tysonmediagroup\.org$/i, '').trim();
+    var session = Object.assign({
+      name: acc.name,
+      username: formatAccountUsername(cleanSlug, isStaff),
+      slug: cleanSlug,
+      team: isStaff ? 'Y' : 'N',
+      badge: acc.badge || (isStaff ? 'TYSON Team' : 'Standard Member'),
+      hasTysonBadge: acc.hasTysonBadge !== undefined ? !!acc.hasTysonBadge : isStaff,
+      googleLinked: !!(acc.googleLinked || acc.googleSub || acc.googleEmail),
+      googleEmail: acc.googleEmail || '',
+      ts: Date.now()
+    }, extraSessionProps || {});
+    return saveSessionObject(session);
+  }
+
+  // --- Centralized Google SSO Client SDK ---
+
+  function authenticateWithGoogle(credentialOrOptions, callback) {
+    var payload = { mode: 'signin' };
+    if (typeof credentialOrOptions === 'string') {
+      payload.credential = credentialOrOptions;
+    } else if (credentialOrOptions && typeof credentialOrOptions === 'object') {
+      payload = Object.assign(payload, credentialOrOptions);
+    }
+
+    var apiBase = getCloudApiBase();
+    fetch(apiBase + '/api/auth/google', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) {
+          if (typeof callback === 'function') callback({ ok: false, error: (res && res.error) || 'Google sign-in failed.' });
+          return;
+        }
+        if (res.status === 'AUTHENTICATED' && res.session) {
+          if (res.account) {
+            var custom = getCustomAccounts();
+            var idx = custom.findIndex(function (a) { return a.slug.toLowerCase() === res.account.slug.toLowerCase(); });
+            if (idx >= 0) custom[idx] = Object.assign({}, custom[idx], res.account);
+            else custom.push(res.account);
+            saveCustomAccounts(custom);
+          }
+          var session = saveSessionObject(res.session);
+          if (typeof callback === 'function') {
+            callback({ ok: true, status: 'AUTHENTICATED', account: res.account, session: session });
+          }
+          return;
+        }
+        if (res.status === 'NEEDS_HANDLE') {
+          if (typeof callback === 'function') {
+            callback({
+              ok: true,
+              status: 'NEEDS_HANDLE',
+              onboardingToken: res.onboardingToken,
+              googleProfile: res.googleProfile
+            });
+          }
+          return;
+        }
+        if (typeof callback === 'function') callback(res);
+      })
+      .catch(function (err) {
+        if (typeof callback === 'function') callback({ ok: false, error: err.message || 'Network error verifying Google sign-in.' });
+      });
+  }
+
+  function completeGoogleSignup(options, callback) {
+    var apiBase = getCloudApiBase();
+    var payload = {
+      mode: 'complete',
+      onboardingToken: options.onboardingToken,
+      slug: (options.slug || options.username || '').trim().toLowerCase(),
+      firstName: options.firstName || '',
+      lastName: options.lastName || '',
+      showRealName: options.showRealName !== false
+    };
+
+    fetch(apiBase + '/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !res.ok) {
+          if (typeof callback === 'function') callback({ ok: false, error: (res && res.error) || 'Could not complete Google signup.' });
+          return;
+        }
+        if (res.account) {
+          var custom = getCustomAccounts();
+          custom.push(normalizeAccountObject(res.account));
+          saveCustomAccounts(custom);
+          if (res.account.pfpUrl) {
+            saveCustomProfile(res.account.slug, {
+              displayName: res.account.name,
+              firstName: res.account.firstName,
+              lastName: res.account.lastName,
+              showRealName: res.account.showRealName,
+              bio: res.account.bio,
+              division: res.account.division,
+              pfpUrl: res.account.pfpUrl
+            });
+          }
+        }
+        var session = saveSessionObject(res.session || createSessionForAccount(res.account));
+        if (typeof callback === 'function') {
+          callback({ ok: true, status: 'AUTHENTICATED', account: res.account, session: session });
+        }
+      })
+      .catch(function (err) {
+        if (typeof callback === 'function') callback({ ok: false, error: err.message || 'Network error completing Google signup.' });
+      });
+  }
+
+  function linkGoogleAccount(credentialOrToken, callback) {
+    var current = getSession();
+    if (!current || !current.slug) {
+      if (typeof callback === 'function') callback({ ok: false, error: 'You must be signed in to link a Google account.' });
+      return;
+    }
+    var payload = { mode: 'link', slug: current.slug };
+    if (typeof credentialOrToken === 'string') {
+      payload.credential = credentialOrToken;
+    } else if (credentialOrToken && typeof credentialOrToken === 'object') {
+      payload = Object.assign(payload, credentialOrToken);
+    }
+
+    var apiBase = getCloudApiBase();
+    fetch(apiBase + '/api/auth/google', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.ok && res.session) {
+          saveSessionObject(res.session);
+        }
+        if (typeof callback === 'function') callback(res);
+      })
+      .catch(function (err) {
+        if (typeof callback === 'function') callback({ ok: false, error: err.message || 'Failed to link Google account.' });
+      });
+  }
+
+  function unlinkGoogleAccount(callback) {
+    var current = getSession();
+    if (!current || !current.slug) {
+      if (typeof callback === 'function') callback({ ok: false, error: 'Not signed in.' });
+      return;
+    }
+    var apiBase = getCloudApiBase();
+    fetch(apiBase + '/api/auth/google', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+      body: JSON.stringify({ mode: 'unlink', slug: current.slug })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.ok && res.session) {
+          saveSessionObject(res.session);
+        }
+        if (typeof callback === 'function') callback(res);
+      })
+      .catch(function (err) {
+        if (typeof callback === 'function') callback({ ok: false, error: err.message || 'Failed to unlink Google account.' });
+      });
   }
 
   function getSession() {
@@ -560,11 +927,9 @@
       localStorage.setItem(CUSTOM_KEY_PREFIX + slug, raw);
     } catch (e) {}
 
-    // Write chunked cookie if total payload fits in chunk quota
     if (raw.length <= CHUNK_COUNT * CHUNK_SIZE) {
       writeChunkedCookie(slug, raw);
     } else {
-      // If cover photo is huge, at least store PFP + metadata in chunked cookie
       var pfpPayload = JSON.stringify({
         slug: slug,
         displayName: payload.displayName,
@@ -579,12 +944,11 @@
       }
     }
 
-    // Sync to Cloudflare Worker Edge Storage (/api/profile)
     var apiBase = getCloudApiBase();
     try {
       fetch(apiBase + '/api/profile?slug=' + encodeURIComponent(slug), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
         body: raw
       })
         .then(function (r) { return r.json(); })
@@ -653,7 +1017,8 @@
 
     var apiBase = getCloudApiBase();
     fetch(apiBase + '/api/profile?slug=' + encodeURIComponent(slug), {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeader()
     }).finally(function () {
       if (typeof callback === 'function') callback();
     });
@@ -720,11 +1085,19 @@
   document.addEventListener('DOMContentLoaded', initThemeDrawer);
 
   window.MyTysonCore = {
+    GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID,
     DEFAULT_ACCOUNTS: DEFAULT_ACCOUNTS,
     ACCOUNTS: DEFAULT_ACCOUNTS,
+    isStaffMember: isStaffMember,
+    formatAccountUsername: formatAccountUsername,
+    formatDisplayHandle: formatDisplayHandle,
     getAllAccounts: getAllAccounts,
     findAccount: findAccount,
     authenticate: authenticate,
+    authenticateWithGoogle: authenticateWithGoogle,
+    completeGoogleSignup: completeGoogleSignup,
+    linkGoogleAccount: linkGoogleAccount,
+    unlinkGoogleAccount: unlinkGoogleAccount,
     createSessionForAccount: createSessionForAccount,
     getSession: getSession,
     clearSession: clearSession,

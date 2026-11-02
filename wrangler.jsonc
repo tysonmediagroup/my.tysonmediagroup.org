@@ -5,5 +5,15 @@
   "assets": {
     "directory": ".",
     "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mytyson-db",
+      "database_id": "a7a9072f-0921-4247-aebc-0c1c920a40a6"
+    }
+  ],
+  "vars": {
+    "GOOGLE_CLIENT_ID": "1054168096128-2er1dlrrkeqphr2bu8vpsa4v1rd99reg.apps.googleusercontent.com"
   }
 }
